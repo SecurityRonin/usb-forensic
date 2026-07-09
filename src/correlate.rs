@@ -172,6 +172,32 @@ mod tests {
     }
 
     #[test]
+    fn same_container_agreement_is_not_tamper_independent_corroboration() {
+        // USBSTOR and MountedDevices are different recording mechanisms but the SAME
+        // storage container (the SYSTEM hive) — one hive tamper corrupts both, so their
+        // agreement is not tamper-independent corroboration. Grade conservatively.
+        let ts = Value::Timestamp(1_700_000_000);
+        let claims = [
+            claim(
+                "SN1",
+                Attribute::FirstConnected,
+                ts.clone(),
+                SourceKind::Usbstor,
+                "USBSTOR\\...",
+            ),
+            claim(
+                "SN1",
+                Attribute::FirstConnected,
+                ts,
+                SourceKind::MountedDevices,
+                "MountedDevices\\...",
+            ),
+        ];
+        let hist = correlate(&claims);
+        assert_eq!(hist[0].attributes[0].consistency, Consistency::SingleSource);
+    }
+
+    #[test]
     fn two_sources_that_disagree_are_conflicting() {
         let claims = [
             claim(
