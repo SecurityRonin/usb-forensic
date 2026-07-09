@@ -38,6 +38,7 @@ Community); and (Professional) mounted forensic images and Volume Shadow Copies.
 
 - Registry: **SYSTEM** (USBSTOR, `Enum\USB`, MountedDevices), **SOFTWARE** (Windows
   Portable Devices / WPDBUSENUM, VolumeInfoCache), **NTUSER.DAT** (MountPoints2)
+- **`Amcache.hve`** (execution / first-seen signal — confirmed on the vendor features page)
 - **SetupAPI** logs (`setupapi.dev.log`)
 - **Event Logs** (including the Partition/Diagnostic log for volume serial numbers)
 - **Registry transaction logs** — replayed to recover data not yet flushed to the primary hive
@@ -79,17 +80,48 @@ Output: Excel high-level and verbose reports, plus per-device/aggregate timeline
 | [OpenText EnCase](https://www.opentext.com/products/encase-forensic) | Commercial suite | USB artifacts via EnScript/artifact parsing | **Paid** (high) | Windows | Court pedigree, whole-disk. Weaker: USB history shallow/manual |
 | [Belkasoft X](https://belkasoft.com/x) | Commercial suite | Registry + connected-device artifacts among a broad library | **Paid** (mid; more affordable than AXIOM) | Windows | Affordable all-rounder. Weaker: smaller library, USB not specialized |
 
-## Whitespace a new entrant could take
+## Whitespace a new entrant could take (corrected after pressure-test)
 
 USB Detective's genuine moat is **timestamp-consistency scoring + per-value source
-provenance** — exactly the defensibility an expert witness needs. The gaps the field
-leaves open:
+provenance** on Windows. A first-pass thesis proposed beating it by going cross-platform
+with the same model; a deep analysis (Fable 5) plus an adversarial critique (Codex)
+rejected that framing. What survives:
 
-1. **Cross-platform** device history with the same confidence model. All the
-   correlation-scoring tools are Windows-only; USBFT parses macOS/Linux but without scoring.
-2. An **open-source** tool that automates the KAPE/RegRipper correlate-and-score step.
-3. **Court-ready provenance export** — a per-timestamp source chain to PDF/DOCX as a
-   first-class feature, not an Excel dump.
+**Rejected — do not pitch these as superiority:**
+
+1. **"Same confidence model on macOS/Linux."** Consistency scoring needs several
+   *independent, persistent* sources with differing update semantics to cross-check — a
+   Windows property. macOS = ~one timestamped source (unified logs / USBMSC,
+   **days-to-weeks retention**) + name-only plists; Linux = effectively single-source
+   (journald, retention-bound; the existing tool `usbrip` is exactly this). With 1–2
+   sources there is nothing to score. Cross-platform *runtime* (analyse Windows evidence
+   from any OS) is real; cross-platform *scored evidence* is not.
+2. **"Match Windows depth cheaply, then differentiate."** The scoring algorithm is trivial;
+   the semantic model under it (per-build timestamp-rewrite quirks, `Enum\SCSI`/UASP
+   coverage, Win10 30-day cleanup semantics, local-vs-UTC normalization) is ~12–24 months
+   of corpus-driven differential validation. USB Detective Community edition is a usable
+   free **differential oracle** to drive that validation.
+3. **"Open-source is more court-defensible."** Closed tools are routinely admitted under
+   Daubert; source availability aids *testimony* and opponent re-analysis, it does not gate
+   admissibility. Real but narrow, and double-edged (public bug tracker = cross-exam fuel).
+
+**Real, structural whitespace — gaps USB Detective cannot close without changing what it is:**
+
+1. **Pipeline/library form factor.** Headless, embeddable, JSONL-diffable, fleet-scale,
+   OS-agnostic *runtime* over Windows evidence. No open tool does scored multi-source USB
+   correlation as a CLI/library (RegRipper = raw plugins; USBFT = unscored GUI). Customer
+   is the **pipeline operator / lab-automation user**, not the GUI examiner (who has free
+   Community edition and no reason to switch).
+2. **Reproducibility by construction** — a deterministic `--reproduce` chain
+   (`hive → key → raw bytes → decoding rule`) any party can re-run and hash. The durable
+   half of "court-ready"; PDF/DOCX formatting is a weekend feature and thus not a moat.
+3. **Fleet leverage** — reuse of the fleet's parsers and `forensicnomicon` artifact catalog
+   as the **first instance of a general artifact-domain analyzer**, not a one-off.
+
+**Kill criteria:** the 80%-clone trap (a free-Community clone wins no examiners → ship the
+form-factor wedge first, not the match); no sustained validation-corpus commitment (an
+unvalidated correlator is a liability generator → v1 says "consistent with / not consistent
+with," never "spoofed"); the engine can't generalize past USB.
 
 ## Gaps, notes and uncertainties
 
