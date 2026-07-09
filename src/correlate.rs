@@ -44,8 +44,61 @@ pub struct DeviceHistory {
 /// well its independent sources agree. Output is deterministic (by device key, then
 /// attribute, then value+provenance) so runs are diffable and reproducible.
 #[must_use]
-pub fn correlate(_claims: &[Claim]) -> Vec<DeviceHistory> {
-    unimplemented!("GREEN step")
+pub fn correlate(claims: &[Claim]) -> Vec<DeviceHistory> {
+    // device -> attribute -> provenanced values, all in deterministic order.
+    let mut grouped: BTreeMap<DeviceKey, BTreeMap<Attribute, Vec<ProvenancedValue>>> =
+        BTreeMap::new();
+    for c in claims {
+        grouped
+            .entry(c.device.clone())
+            .or_default()
+            .entry(c.attribute)
+            .or_default()
+            .push(ProvenancedValue {
+                value: c.value.clone(),
+                provenance: c.provenance.clone(),
+            });
+    }
+
+    grouped
+        .into_iter()
+        .map(|(device, attrs)| {
+            let attributes = attrs
+                .into_iter()
+                .map(|(attribute, mut values)| {
+                    values.sort();
+                    DeviceHistory::grade(attribute, values)
+                })
+                .collect();
+            DeviceHistory { device, attributes }
+        })
+        .collect()
+}
+
+impl DeviceHistory {
+    /// Grade one attribute's values by how well their independent *sources* agree.
+    ///
+    /// The rule is general — it holds for any attribute and any set of sources: fewer
+    /// than two distinct sources cannot corroborate (`SingleSource`); two or more that
+    /// report a single value agree (`Corroborated`); two or more that report differing
+    /// values disagree (`Conflicting`). It is a description of the evidence, not a
+    /// verdict on it.
+    fn grade(attribute: Attribute, values: Vec<ProvenancedValue>) -> CorrelatedAttribute {
+        let sources: BTreeSet<_> = values.iter().map(|v| v.provenance.source).collect();
+        let distinct_values: BTreeSet<&Value> = values.iter().map(|v| &v.value).collect();
+        let consistency = if sources.len() < 2 {
+            Consistency::SingleSource
+        } else if distinct_values.len() == 1 {
+            Consistency::Corroborated
+        } else {
+            Consistency::Conflicting
+        };
+        CorrelatedAttribute {
+            attribute,
+            consistency,
+            values,
+        }
+    }
 }
 
 /// Serialize histories as JSONL — one JSON object per line: pipeable, greppable,
@@ -53,8 +106,13 @@ pub fn correlate(_claims: &[Claim]) -> Vec<DeviceHistory> {
 ///
 /// # Errors
 /// Propagates any `serde_json` serialization error.
-pub fn to_jsonl(_histories: &[DeviceHistory]) -> Result<String, serde_json::Error> {
-    unimplemented!("GREEN step")
+pub fn to_jsonl(histories: &[DeviceHistory]) -> Result<String, serde_json::Error> {
+    let mut out = String::new();
+    for h in histories {
+        out.push_str(&serde_json::to_string(h)?);
+        out.push('\n');
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
