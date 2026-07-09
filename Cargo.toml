@@ -27,8 +27,9 @@ exclude = [
 ]
 
 [dependencies]
-# Intentionally empty while this is a pre-code seed. The intended fleet dependencies
-# (documented in docs/roadmap.md) are wired in per-feature under TDD:
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Fleet reader crates are wired in per-source, under TDD (see docs/roadmap.md):
 #   winreg-artifacts   USBSTOR / MountedDevices / MountPoints2 / WPDBUSENUM / VolumeInfoCache / Amcache
 #   peripheral-core    setupapi.dev.log device-install events
 #   winevt-forensic    Partition/Diagnostic event log (volume serials)

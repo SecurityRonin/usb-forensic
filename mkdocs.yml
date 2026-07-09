@@ -41,6 +41,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Feature Parity: feature-parity.md
   - Competitive Landscape: competitive-landscape.md
   - Roadmap: roadmap.md
   - Validation: validation.md

@@ -35,6 +35,14 @@
 
 #![forbid(unsafe_code)]
 
+pub mod correlate;
+pub mod model;
+
+pub use correlate::{correlate, to_jsonl, CorrelatedAttribute, DeviceHistory, ProvenancedValue};
+pub use model::{Attribute, Claim, DeviceKey, Provenance, SourceKind, Value};
+
+use serde::Serialize;
+
 /// The cross-source agreement grade for one reported attribute (first-connected time,
 /// volume name, serial, …) — the defining output of the correlation engine.
 ///
@@ -42,7 +50,7 @@
 /// sources agreed, so a partial or contradicted value is visibly distinct from a
 /// corroborated one. It is a description of the evidence, never a verdict: `Conflicting`
 /// says the sources disagree, not that a value was "spoofed".
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[non_exhaustive]
 pub enum Consistency {
     /// Exactly one source reported the value; nothing independent to corroborate it.
