@@ -1,5 +1,5 @@
-//! The source-agnostic domain model: atomic claims a [`HistorySource`](crate::HistorySource)
-//! emits, which the correlation core groups and grades.
+//! The source-agnostic domain model: atomic claims a source adapter emits, which the
+//! correlation core groups and grades.
 //!
 //! Enum variants are intentionally minimal and `#[non_exhaustive]` — each new source
 //! adds the variant it needs (additive, non-breaking). The full planned set is the

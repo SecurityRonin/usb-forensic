@@ -1,9 +1,9 @@
 //! The correlation core: group atomic [`Claim`]s into per-device histories and grade
-//! each attribute's cross-source [`Consistency`](crate::Consistency).
+//! each attribute's cross-source [`Consistency`].
 //!
 //! This is the source-agnostic moat. Every artifact in `docs/feature-parity.md` becomes
-//! "emit `Claim`s from a new [`HistorySource`](crate::HistorySource)"; the grading logic
-//! here does not change as sources are added.
+//! "emit `Claim`s from a new source adapter"; the grading logic here does not change as
+//! sources are added.
 
 use crate::model::{Attribute, Claim, DeviceKey, Provenance, Value};
 use crate::Consistency;
