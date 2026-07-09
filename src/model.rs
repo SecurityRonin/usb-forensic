@@ -21,6 +21,36 @@ pub enum SourceKind {
     PartitionDiag,
 }
 
+/// The physical storage container an artifact lives in — the tamper surface.
+///
+/// Corroboration counts *independent* sources, and independence is a property of the
+/// container, not the recording mechanism: two sources in the same container share one
+/// tamper surface, so their agreement is not tamper-independent. Distinct from
+/// [`SourceKind`], which is the recording mechanism (guards against parse error and
+/// coincidence, a weaker form of independence).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[non_exhaustive]
+pub enum ArtifactContainer {
+    /// The `SYSTEM` registry hive (USBSTOR, MountedDevices, …).
+    SystemHive,
+    /// The `setupapi.dev.log` text log.
+    SetupApiLog,
+    /// A Windows event log (`.evtx`).
+    EventLog,
+}
+
+impl SourceKind {
+    /// The storage container this source lives in — its tamper surface. Total.
+    #[must_use]
+    pub const fn container(self) -> ArtifactContainer {
+        match self {
+            Self::Usbstor | Self::MountedDevices => ArtifactContainer::SystemHive,
+            Self::SetupApi => ArtifactContainer::SetupApiLog,
+            Self::PartitionDiag => ArtifactContainer::EventLog,
+        }
+    }
+}
+
 /// Which device attribute a claim describes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[non_exhaustive]

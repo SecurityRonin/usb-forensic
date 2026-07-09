@@ -76,17 +76,23 @@ pub fn correlate(claims: &[Claim]) -> Vec<DeviceHistory> {
 }
 
 impl DeviceHistory {
-    /// Grade one attribute's values by how well their independent *sources* agree.
+    /// Grade one attribute's values by how well its *tamper-independent* sources agree.
     ///
-    /// The rule is general — it holds for any attribute and any set of sources: fewer
-    /// than two distinct sources cannot corroborate (`SingleSource`); two or more that
-    /// report a single value agree (`Corroborated`); two or more that report differing
-    /// values disagree (`Conflicting`). It is a description of the evidence, not a
-    /// verdict on it.
+    /// The rule is general — it holds for any attribute and any set of sources.
+    /// Independence is counted by storage *container* ([`ArtifactContainer`]), not
+    /// recording mechanism ([`SourceKind`]): sources sharing one container share one
+    /// tamper surface, so their agreement is not tamper-independent corroboration.
+    /// Fewer than two distinct containers cannot corroborate (`SingleSource`); two or
+    /// more containers reporting a single value agree (`Corroborated`); two or more
+    /// reporting differing values disagree (`Conflicting`). It is a description of the
+    /// evidence, not a verdict on it.
     fn grade(attribute: Attribute, values: Vec<ProvenancedValue>) -> CorrelatedAttribute {
-        let sources: BTreeSet<_> = values.iter().map(|v| v.provenance.source).collect();
+        let containers: BTreeSet<_> = values
+            .iter()
+            .map(|v| v.provenance.source.container())
+            .collect();
         let distinct_values: BTreeSet<&Value> = values.iter().map(|v| &v.value).collect();
-        let consistency = if sources.len() < 2 {
+        let consistency = if containers.len() < 2 {
             Consistency::SingleSource
         } else if distinct_values.len() == 1 {
             Consistency::Corroborated
