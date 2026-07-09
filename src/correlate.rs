@@ -178,6 +178,32 @@ mod tests {
     }
 
     #[test]
+    fn volume_serial_join_across_lnk_and_event_log_corroborates() {
+        // An LNK's volume serial and the Partition/Diagnostic log's volume serial for
+        // the same volume are in different containers (LnkFile vs EventLog) — an
+        // independent cross-container corroboration of the volume identity.
+        let vol = Value::Text("DEAD-BEEF".into());
+        let claims = [
+            claim(
+                "DEAD-BEEF",
+                Attribute::VolumeSerial,
+                vol.clone(),
+                SourceKind::Lnk,
+                "secret.lnk",
+            ),
+            claim(
+                "DEAD-BEEF",
+                Attribute::VolumeSerial,
+                vol,
+                SourceKind::PartitionDiag,
+                "evtx:1006",
+            ),
+        ];
+        let hist = correlate(&claims);
+        assert_eq!(hist[0].attributes[0].consistency, Consistency::Corroborated);
+    }
+
+    #[test]
     fn same_container_agreement_is_not_tamper_independent_corroboration() {
         // USBSTOR and MountedDevices are different recording mechanisms but the SAME
         // storage container (the SYSTEM hive) — one hive tamper corrupts both, so their
