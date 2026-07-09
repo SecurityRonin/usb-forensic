@@ -37,9 +37,11 @@
 
 pub mod correlate;
 pub mod model;
+pub mod source;
 
 pub use correlate::{correlate, to_jsonl, CorrelatedAttribute, DeviceHistory, ProvenancedValue};
 pub use model::{Attribute, Claim, DeviceKey, Provenance, SourceKind, Value};
+pub use source::{correlate_sources, HistorySource};
 
 use serde::Serialize;
 
