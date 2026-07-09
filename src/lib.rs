@@ -35,6 +35,37 @@
 
 #![forbid(unsafe_code)]
 
+/// The cross-source agreement grade for one reported attribute (first-connected time,
+/// volume name, serial, …) — the defining output of the correlation engine.
+///
+/// It records whether an independent second source corroborated a value and whether the
+/// sources agreed, so a partial or contradicted value is visibly distinct from a
+/// corroborated one. It is a description of the evidence, never a verdict: `Conflicting`
+/// says the sources disagree, not that a value was "spoofed".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Consistency {
+    /// Exactly one source reported the value; nothing independent to corroborate it.
+    SingleSource,
+    /// Two or more independent sources reported the value and they agree.
+    Corroborated,
+    /// Two or more independent sources reported the value and they disagree.
+    Conflicting,
+}
+
+impl Consistency {
+    /// A short, stable label for human-facing output. This is a published contract:
+    /// existing labels never change; new variants get new labels.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::SingleSource => "single-source",
+            Self::Corroborated => "corroborated",
+            Self::Conflicting => "conflicting",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
