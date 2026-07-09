@@ -1,0 +1,18 @@
+# Rust build output
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# Local evidence / scratch (never commit case data)
+/evidence
+/scratch
+*.hve
+*.plaso
