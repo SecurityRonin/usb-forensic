@@ -1,137 +1,129 @@
 # usb-forensic
 
-**Status: design seed (research only, no code yet).** This repo captures the market
-research and product thesis for a Windows USB-device forensics tool. It exists to hold
-the decision to build before a line of code is written.
+[![CI](https://github.com/SecurityRonin/usb-forensic/actions/workflows/ci.yml/badge.svg)](https://github.com/SecurityRonin/usb-forensic/actions)
+[![Rust 1.81+](https://img.shields.io/badge/rust-1.81%2B-orange.svg)](https://www.rust-lang.org)
+[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/sponsor-h4x0r-ea4aaa?logo=github-sponsors)](https://github.com/sponsors/h4x0r)
 
-## What this would be
+**The first USB-history correlation engine built for pipelines and courtrooms rather than a viewer window — USB Detective-grade Windows artifact depth, running headless on any OS at fleet scale, with every timestamp traceable to its raw bytes and every conclusion re-derivable by anyone, including the other side's expert.**
 
-A **correlation engine** — headless, library-embeddable, reproducible — that reconstructs
-USB-device connection history from every relevant Windows artifact and cross-correlates
-the timestamps across sources, reporting each value as *consistent with* or *not
-consistent with* the others so an examiner can tell a reliable first-connected time from a
-partial or contradicted one. Built for pipelines and courtrooms, not a viewer window.
+> **Status: pre-code design seed.** This repo is scaffolded to the SecurityRonin fleet
+> standard (CI, panic-free lints, supply-chain gates, MkDocs docs) but carries **no
+> correlation logic yet**. It holds a validated, adversarially-pressure-tested product
+> thesis and a build plan. `Cargo.toml` sets `publish = false` until the first Phase 1
+> feature lands under TDD; the crates.io / docs.rs / coverage badges join the row at
+> first publish. Code is filled in one source and one finding at a time.
 
-The framing matters: it is **not** a Windows-only GUI clone of USB Detective. It runs on
-any OS to analyse Windows evidence at fleet scale, emits diffable JSONL, and can
-**re-derive every reported value deterministically from the raw bytes** — a reproducibility
-chain a closed binary cannot offer. That form factor is the wedge (see whitespace below).
+## What this is
 
-USB history is a **multi-source artifact domain**, not a single-parser job. On Windows the
-evidence is spread across:
+A thin **orchestration / correlation** crate — it parses no raw format itself. It
+consumes the fleet's already-built reader crates, normalizes their output into one
+uniform USB-device-history event, and cross-correlates the timestamps across sources,
+reporting each value as *consistent with* or *not consistent with* the others so an
+examiner can tell a reliable first-connected time from a partial or contradicted one.
+
+USB history is a **multi-source artifact domain**, not a single-parser job. On Windows
+the evidence is spread across:
 
 - **Registry** — `USBSTOR`, `Enum\USB`, `MountedDevices` (SYSTEM); Windows Portable
   Devices / `WPDBUSENUM`, `VolumeInfoCache` (SOFTWARE); `MountPoints2` (NTUSER.DAT);
-  `Amcache.hve` (execution/first-seen signal)
+  `Amcache.hve` (execution / first-seen signal)
 - **`Enum\SCSI`** — UASP / USB-3 drives (`uaspstor.sys`, Win8+) enumerate here, **not**
   under `USBSTOR`; a correlator reading only `USBSTOR` silently misses the modern drives
   most likely to matter in an exfiltration case
 - **SetupAPI** device-install logs (`setupapi.dev.log`) — local time, no TZ marker
-- **Event Logs** (including the Partition/Diagnostic log for volume serial numbers)
-- **LNK files, jump lists, shellbags** — to link files opened and directories touched on
-  the device
+- **Event Logs** (the Partition/Diagnostic log for volume serial numbers)
+- **LNK files, jump lists, shellbags** — files opened and directories touched on the device
 
 ## Where it sits in the fleet
 
-This is an **artifact-domain analyzer**, a layer above the data-source parsers. It would
-**consume** them rather than reimplement them:
+An **artifact-domain analyzer**, a layer above the data-source parsers — it **consumes**
+them rather than reimplement them, and emits `forensicnomicon::report::Finding`s that
+Issen renders alongside every other analyzer.
 
 ```
-usb-forensic  (this repo)      ── correlates USB device history, scores timestamp consistency
-   ├── consumes winreg-forensic (reg4n6)   ── hive parsing (USBSTOR, MountedDevices, …)
-   ├── consumes an EVTX parser             ── Partition/Diagnostic event logs
-   └── consumes an NTFS/LNK parser         ── setupapi.dev.log, LNK, shellbags
+usb-forensic  ── correlates USB device history, scores cross-source timestamp consistency
+   ├── consumes winreg-artifacts  ── USBSTOR / MountedDevices / WPDBUSENUM / Amcache / …
+   ├── consumes peripheral-core   ── setupapi.dev.log device-install events
+   ├── consumes winevt-forensic   ── Partition/Diagnostic event log (volume serials)
+   └── consumes lnk-core          ── recent-file LNK volume-serial join
 ```
 
-The forensic *knowledge* (which keys, which GUIDs, which fields, MITRE mapping) already
-lives in [`forensicnomicon`](https://crates.io/crates/forensicnomicon)'s artifact catalog;
-this tool would apply that knowledge, not restate it.
+It is the deep, USB-specific sibling of
+[`useract-forensic`](https://github.com/SecurityRonin/useract-forensic): that crate
+treats a device connection as one input to a broad user-activity timeline;
+`usb-forensic` is the focused consistency-scoring engine for the USB domain itself.
 
-Keeping it separate from `winreg-forensic` is deliberate: `winreg-forensic` reads a
-registry hive; it has no business parsing SetupAPI logs or LNK files. The dependency runs
-one way (`usb-forensic` → `winreg-forensic`), so the boundary stays clean.
+## Why build it — the whitespace (adversarially pressure-tested)
 
-## Why build it — the whitespace (corrected)
-
-Existing tools cluster at two ends: free single-source viewers (USBDeview, USB Historian)
-and broad forensic suites (AXIOM, X-Ways) where USB history is one small module. The one
-tool that specializes — [USB Detective](https://usbdetective.com/) — owns a real moat:
-**per-source timestamp correlation with a consistency score, and per-value provenance**.
-It is Windows-only, closed-source, GUI, and ~6 years mature.
+The reference product is [USB Detective](https://usbdetective.com/): Windows-only,
+closed-source, GUI, ~6 years mature. Its moat is **cross-source timestamp consistency
+scoring + per-value provenance** — the defensibility an expert witness needs.
 
 An earlier draft of this thesis claimed we could go *cross-platform with the same
-confidence model* and thereby be "better." A deep pressure-test (Fable 5) and an
-adversarial critique (Codex) both rejected that. The honest picture:
+confidence model* and be "better." A deep analysis (Fable 5) and a hostile critique
+(Codex) both rejected that. What survives:
 
-**Not the wedge:**
+**Rejected — not the wedge:**
 
-1. **"Same confidence model on macOS/Linux" is illusory.** Consistency scoring only means
-   something when several *independent, persistent* sources with different update semantics
-   can be cross-checked — a Windows-specific property. macOS yields ~one strongly
-   timestamped source (unified logs / USBMSC, **days-to-weeks retention**) plus name-only
-   plists; Linux is effectively **single-source** (journald, retention-bound). With 1–2
-   sources there is nothing to score against — a "consistency score" there is vacuous, and
-   marketing it would be the exact overstatement this tool exists to detect.
-2. **"Match USB Detective on Windows" is not a cheap phase 1.** The scoring *algorithm* is
-   a weekend; the semantic model under it is the moat — per-build timestamp-rewrite quirks,
-   `Enum\SCSI`/UASP coverage, Win10 30-day device-cleanup semantics, local-vs-UTC traps.
-   Realistically **12–24 months of corpus-driven differential validation** before the
-   scorer is trustworthy in casework.
-3. **"Open-source = court-defensible" is narrow.** Courts have admitted closed tools
-   (EnCase, FTK, Cellebrite) under Daubert for decades; source availability does not get
-   you *admitted*. It makes *testimony* more defensible and the opponent's re-analysis
-   cheaper — a practitioner's advantage, not a doctrinal one (and it hands the opposing
-   expert your bug tracker).
+1. **"Same confidence model on macOS/Linux" is illusory.** Consistency scoring needs
+   several *independent, persistent* sources with different update semantics to
+   cross-check — a Windows-specific property. macOS ≈ one strongly timestamped source
+   (unified logs / USBMSC, days-to-weeks retention) plus name-only plists; Linux ≈
+   single-source journald. With 1–2 sources there is nothing to score against.
+2. **"Match USB Detective on Windows" is not a cheap phase 1.** The scoring *algorithm*
+   is a weekend; the semantic model under it (per-build timestamp-rewrite quirks,
+   `Enum\SCSI`/UASP coverage, Win10 30-day cleanup, local-vs-UTC traps) is ~12–24 months
+   of corpus-driven differential validation.
+3. **"Open-source = court-defensible" is narrow.** Courts admit closed tools under
+   Daubert routinely; source availability aids *testimony*, not admissibility (and it
+   hands the opposing expert your bug tracker).
 
-**The actual wedge — structural, not feature gaps Hale can patch:**
+**The actual wedge — structural, not feature gaps the incumbent can patch:**
 
 1. **Form factor USB Detective cannot match without ceasing to be itself:** headless,
    library-embeddable, pipeline-native, diffable JSONL, running on any OS to analyse
-   *Windows* evidence at fleet scale. Nothing in the open ecosystem does scored multi-source
-   USB correlation as a CLI/library (RegRipper = raw plugins; USBFT = unscored GUI).
-2. **Reproducibility by construction** — a `--reproduce` mode re-deriving every value from
-   `hive → key → raw bytes → decoding rule`, hashable and runnable by the opposing expert.
-   This is the durable half of "court-ready"; the PDF/DOCX *format* is a weekend feature
-   anyone copies.
-3. **The customer is the pipeline operator, not the GUI examiner** (the examiner has a free
-   Community edition and zero switching pressure): Velociraptor/KAPE automation, labs
-   processing images at scale, integration into the fleet's own parsers and
-   `forensicnomicon` MITRE catalog. Smaller, quieter market — infrastructure, not a hero
-   product.
+   *Windows* evidence at fleet scale. Nothing open does scored multi-source USB
+   correlation as a CLI/library (RegRipper = raw plugins; USBFT = unscored GUI).
+2. **Reproducibility by construction** — a `--reproduce` mode re-deriving every value
+   from `hive → key → raw bytes → decoding rule`, hashable and runnable by the opposing
+   expert. The durable half of "court-ready"; the PDF/DOCX *format* is a weekend feature.
+3. **The customer is the pipeline operator, not the GUI examiner** (who has a free
+   Community edition and zero switching pressure): lab automation, Velociraptor/KAPE,
+   fleet integration. Smaller, quieter market — infrastructure, not a hero product.
 
-Full landscape and sources: [`docs/competitive-landscape.md`](docs/competitive-landscape.md).
+Full landscape, sources, and competitor matrix:
+[`docs/competitive-landscape.md`](docs/competitive-landscape.md). Build sequence:
+[`docs/roadmap.md`](docs/roadmap.md).
 
 ## Kill criteria — build only if none of these trip
 
-1. **The 80%-clone trap.** Community edition is *free*; a 90%-of-Windows clone offers the
-   examiner nothing. If the roadmap reads "match first, differentiate later," it dies in
-   the matching phase with no users. The only viable sequencing is the **inverse**: ship
-   the pipeline/library form factor first (zero incumbent there) with conservative,
-   honest correlation, and let Windows depth accrete under differential test.
-2. **No sustained validation corpus.** An unvalidated correlator here is a liability
-   generator — a miscorrelation that flags a legitimate timestamp, in a report with your
-   name on it, is worse than no tool. v1 must say "consistent with / not consistent with"
-   and **refuse** definitive labels like "spoofed." Requires a maintained corpus of real
-   images spanning XP→11 with documented ground truth (per the fleet test-data standard).
-3. **Can't generalize past USB.** Rational only if this correlation engine is the fleet's
-   **first general artifact-domain analyzer** (scored, provenance-carrying correlation that
-   later covers execution, persistence, …), not a one-off USB tool.
+1. **The 80%-clone trap.** Community edition is free; a 90%-of-Windows clone offers the
+   examiner nothing. The only viable sequencing is the **inverse**: ship the
+   pipeline/library form factor first (zero incumbent there), let Windows depth accrete
+   under differential test.
+2. **No sustained validation corpus.** An unvalidated correlator is a liability
+   generator — a miscorrelation that flags a legitimate timestamp, in a report with the
+   examiner's name on it, is worse than no tool. v1 must say "consistent with / not
+   consistent with" and **refuse** "spoofed." Requires a maintained XP→11 image corpus
+   with documented ground truth.
+3. **Can't generalize past USB.** Rational only as the fleet's **first general
+   artifact-domain correlation engine**, not a one-off USB tool.
 
-Useful lever: **USB Detective Community edition is a free differential oracle** — run both
-over the same evidence; every disagreement is either your bug or a documentable edge case,
-converting Hale's moat into your test suite.
+Useful lever: **USB Detective Community edition is a free differential oracle** — run
+both over the same evidence; every disagreement is either a bug or a documentable edge
+case, converting the incumbent's moat into the test suite.
 
-## Sharpest honest positioning
+## Trust, but verify
 
-> The first USB-history correlation engine built for pipelines and courtrooms rather than a
-> viewer window: USB Detective-grade Windows artifact depth, running headless on any OS at
-> fleet scale, with every timestamp traceable to its raw bytes and every conclusion
-> re-derivable by anyone — including the other side's expert.
+`#![forbid(unsafe_code)]`, panic-free (the workspace denies `unwrap`/`expect` in
+production), and gated on 100% library line coverage. The correlation logic will be
+validated **differentially against an independent oracle** (USB Detective Community
+edition, RegRipper) on real disk images — see
+[`docs/validation.md`](docs/validation.md). Findings are **observations**, never
+verdicts: "consistent with …", the examiner draws the conclusions.
 
-## Next step
+---
 
-None committed. This is a seed. Before any code: (1) confirm the pipeline-operator demand
-is real (talk to lab-automation / Velociraptor users, not GUI examiners); (2) commit to the
-validation-corpus burden or don't start; (3) scope an MVP as the **library/CLI first** —
-registry + SetupAPI + `Enum\SCSI` ingestion → conservative "consistent-with" correlation →
-reproducible JSONL — against the fleet's pre-publish standards.
+[Privacy Policy](https://securityronin.github.io/usb-forensic/privacy/) · [Terms of Service](https://securityronin.github.io/usb-forensic/terms/) · © 2026 Security Ronin Ltd

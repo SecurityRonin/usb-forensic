@@ -1,0 +1,9 @@
+# Allow `unwrap()`/`expect()` inside test functions and `#[cfg(test)]` modules.
+# Production code keeps `clippy::unwrap_used = deny` (see workspace Cargo.toml);
+# tests legitimately unwrap to fail loudly, so this is the upstream-recommended
+# exception rather than scattering `#[allow]` across every test module.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+
+# USB-forensic domain / format names that look like code identifiers to doc_markdown.
+doc-valid-idents = ["USBSTOR", "MountedDevices", "MountPoints2", "WPDBUSENUM", "VolumeInfoCache", "SetupAPI", "Amcache", "ShellBags", "VID", "PID", "UASP", "USBMSC", "SID", "SIDs", "DateTime", "MD5", "SHA-256", "df-stream", "SecurityRonin", "Velociraptor", "KAPE", "RegRipper", "USBFT", "USBDeview", "TDD", "JSONL", "Daubert"]

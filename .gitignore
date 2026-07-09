@@ -2,6 +2,14 @@
 /target
 **/*.rs.bk
 Cargo.lock.bak
+# Library crate: resolve the graph fresh (do NOT commit the lock for a lib)
+Cargo.lock
+
+# MkDocs build output
+/site
+
+# gitignored forensic test data (provenance lives in docs/corpus-catalog.md)
+/tests/data/
 
 # OS / editor cruft
 .DS_Store

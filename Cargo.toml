@@ -1,0 +1,64 @@
+[package]
+name = "usb-forensic"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.81"
+license = "Apache-2.0"
+authors = ["Albert Hui <albert@securityronin.com>"]
+description = "USB device-history correlation engine — reconstructs USB connection history from every Windows artifact and scores cross-source timestamp consistency. Pipeline-native, reproducible, panic-free."
+repository = "https://github.com/SecurityRonin/usb-forensic"
+homepage = "https://github.com/SecurityRonin/usb-forensic"
+documentation = "https://docs.rs/usb-forensic"
+readme = "README.md"
+keywords = ["forensics", "dfir", "usb", "incident-response", "timeline"]
+categories = ["parser-implementations", "command-line-utilities"]
+# Pre-code design seed: nothing is published yet. Remove `publish = false` and set a
+# real version (0.1.0) when the first TDD feature lands. See README "Status".
+publish = false
+exclude = [
+    "/.github",
+    "/docs",
+    "/tests/data",
+    "/fuzz",
+    "/.pre-commit-config.yaml",
+    "/renovate.json",
+    "/.gitleaks.toml",
+    "/mkdocs.yml",
+]
+
+[dependencies]
+# Intentionally empty while this is a pre-code seed. The intended fleet dependencies
+# (documented in docs/roadmap.md) are wired in per-feature under TDD:
+#   winreg-artifacts   USBSTOR / MountedDevices / MountPoints2 / WPDBUSENUM / VolumeInfoCache / Amcache
+#   peripheral-core    setupapi.dev.log device-install events
+#   winevt-forensic    Partition/Diagnostic event log (volume serials)
+#   lnk-core           recent-file LNK volume-serial join
+#   forensicnomicon    the report vocabulary (Finding / Severity / Category)
+
+[lints]
+workspace = true
+
+[workspace]
+resolver = "2"
+
+# Paranoid Gatekeeper: this crate will consume attacker-controllable, already-decoded
+# USB-history events and correlate them. Never panic, never trust a value.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all                      = { level = "warn", priority = -1 }
+pedantic                 = { level = "warn", priority = -1 }
+correctness              = { level = "deny", priority = -1 }
+suspicious               = { level = "deny", priority = -1 }
+unwrap_used              = { level = "deny", priority = 0 }
+expect_used              = { level = "deny", priority = 0 }
+module_name_repetitions  = { level = "allow", priority = 1 }
+must_use_candidate       = { level = "allow", priority = 1 }
+missing_errors_doc       = { level = "allow", priority = 1 }
+missing_panics_doc       = { level = "allow", priority = 1 }
+cast_possible_truncation = { level = "allow", priority = 1 }
+cast_possible_wrap       = { level = "allow", priority = 1 }
+cast_sign_loss           = { level = "allow", priority = 1 }
+cast_precision_loss      = { level = "allow", priority = 1 }
+similar_names            = { level = "allow", priority = 1 }
