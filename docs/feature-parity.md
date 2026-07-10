@@ -60,7 +60,7 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | Device/volume encryption-type detection | USB Detective | 📋 |
 | TrueCrypt/VeraCrypt mounted-volume history | USBFT | 📋 |
 | File-to-device linking (which files touched which stick) | USB Detective, USBFT | 📋 |
-| Timezone normalization (local ↔ UTC), TZ-aware querying | USB Detective | 📋 |
+| Timezone normalization (local ↔ UTC) | USB Detective | ✅ (`--tz-offset`; `clock_is_local` per source) |
 | OS-version-aware artifact semantics | USB Detective | 📋 |
 
 ## 4. Cross-platform evidence (USBFT breadth)
@@ -85,7 +85,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 | Opened/accessed-files report | USB Detective | 📋 |
 | Machine-readable output (JSONL, diffable, pipeable) | (weak in all — Excel/CSV only) | ✅ (`to_jsonl`, default) |
 | `forensicnomicon::report` findings (fleet-uniform, MITRE-tagged) | (fleet-only) | ✅ (`audit`) |
-| Court-ready report with per-value source chain | (Excel only elsewhere) | ✅ native DOCX (`--docx`, oracle-validated) + Markdown (`--report`); PDF via pandoc |
+| Court-ready report with per-value source chain | (Excel only elsewhere) | ✅ native **DOCX + PDF** (`--docx`/`--pdf`, both oracle-validated) + Markdown (`--report`) |
 | Volume / MBR export | USB Detective | 📋 |
 | Differential mode vs USB Detective / RegRipper (validation) | (none) | 📋 |
 

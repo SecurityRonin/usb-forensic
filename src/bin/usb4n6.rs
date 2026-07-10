@@ -7,13 +7,14 @@
 //! writes output.
 //!
 //! ```text
-//! usb4n6 [--table|--report] <file>...   # setupapi.dev.log, .lnk, and
-//!                                        # *.automaticDestinations-ms (type auto-detected)
+//! usb4n6 [--table|--report|--docx|--pdf] [--tz-offset=<secs>] <file>...
+//!     # files: setupapi.dev.log, .lnk, *.automaticDestinations-ms (type auto-detected)
 //! usb4n6 --version
 //! ```
-//! stdout: JSONL (default), a results grid (`--table`), or a court report (`--report`).
-//! stderr: a summary and graded findings. Registry (USBSTOR/SCSI/USB) and event-log
-//! sources join here as they land.
+//! stdout: JSONL (default), a results grid (`--table`), a Markdown court report
+//! (`--report`), or a native `.docx`/`.pdf` report. `--tz-offset=<secs>` normalizes
+//! host-local (setupapi/Linux) timestamps to UTC. stderr: a summary and graded findings.
+//! Registry (USBSTOR/SCSI/USB) and event-log sources join here as they land.
 
 use peripheral_core::setupapi::parse_setupapi;
 use std::process::ExitCode;
