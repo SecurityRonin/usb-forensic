@@ -10,7 +10,7 @@
 //!
 //! ## What runs today
 //!
-//! - **Correlation core:** [`correlate`] / [`correlate_sources`] → [`DeviceHistory`]
+//! - **Correlation core:** [`correlate()`] / [`correlate_sources`] → [`DeviceHistory`]
 //!   with per-attribute [`Consistency`] + retained provenance; [`to_jsonl`] output.
 //! - **Findings:** [`audit`] → `forensicnomicon` findings (conflicts graded, MITRE
 //!   T1070.006 consistent-with; corroborations as reliable history).
