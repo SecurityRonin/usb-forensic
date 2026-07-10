@@ -8,12 +8,25 @@
 
 **The first USB-history correlation engine built for pipelines and courtrooms rather than a viewer window — USB Detective-grade Windows artifact depth, running headless on any OS at fleet scale, with every timestamp traceable to its raw bytes and every conclusion re-derivable by anyone, including the other side's expert.**
 
-> **Status: pre-code design seed.** This repo is scaffolded to the SecurityRonin fleet
-> standard (CI, panic-free lints, supply-chain gates, MkDocs docs) but carries **no
-> correlation logic yet**. It holds a validated, adversarially-pressure-tested product
-> thesis and a build plan. `Cargo.toml` sets `publish = false` until the first Phase 1
-> feature lands under TDD; the crates.io / docs.rs / coverage badges join the row at
-> first publish. Code is filled in one source and one finding at a time.
+> **Status: working alpha.** The correlation core, two sources (`setupapi.dev.log` via
+> `peripheral-core`, `.lnk` via `lnk-core`), `forensicnomicon` findings output, and the
+> `usb4n6` CLI all run and are tested. The registry decoder (USBSTOR/SCSI/USB) is
+> [validated and in review](https://github.com/SecurityRonin/peripheral-forensic/pull/1);
+> event-log, macOS/Linux, and court-report output are next (`docs/roadmap.md`,
+> `docs/feature-parity.md`). `Cargo.toml` keeps `publish = false` until the source set
+> and validation are release-ready; crates.io / docs.rs / coverage badges join then.
+
+## Run it
+
+```console
+$ usb4n6 path/to/setupapi.dev.log path/to/RecentItem.lnk
+{"device":"7&12a3b4c5&0&0000","attributes":[{"attribute":"FirstConnected","consistency":"SingleSource","values":[{"value":{"Timestamp":1681760520},"provenance":{"source":"SetupApi","locator":"setupapi.dev.log:27"}}]}]}
+{"device":"DEAD-BEEF","attributes":[{"attribute":"AccessedFile","consistency":"SingleSource","values":[{"value":{"Text":"E:\\payload.exe"},"provenance":{"source":"Lnk","locator":"RecentItem.lnk"}}]}]}
+usb4n6: 6 device(s) from 6 source record(s), 0 finding(s)
+```
+
+Each device history is one JSONL object carrying every value with its source and
+locator; findings (cross-source conflicts and corroborations) print to stderr.
 
 ## What this is
 

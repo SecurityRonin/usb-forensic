@@ -1,30 +1,27 @@
 //! `usb-forensic` — the USB device-history correlation engine.
 //!
-//! **Status: pre-code design seed.** This crate is scaffolded to the SecurityRonin
-//! fleet standard (CI, lints, docs, supply-chain gates) but carries no correlation
-//! logic yet. The product thesis lives in the repository `README.md` and
-//! `docs/competitive-landscape.md`; the build plan lives in `docs/roadmap.md`. Code
-//! is filled in under strict TDD, one source and one finding at a time.
-//!
-//! ## What it will be
-//!
-//! A thin **orchestration / correlation** crate — it parses no raw format itself.
-//! It consumes the fleet's already-built reader crates, normalizes their output into
-//! one uniform USB-device-history event, and cross-correlates the timestamps across
-//! sources, reporting each value as *consistent with* or *not consistent with* the
-//! others so an examiner can tell a reliable first-connected time from a partial or
-//! contradicted one. Every finding is an **observation** ("consistent with …"), a
+//! A thin **orchestration / correlation** crate — it parses no raw format itself. It
+//! consumes the fleet's reader crates, normalizes their output into one uniform
+//! USB-history [`Claim`], and cross-correlates values across sources, grading each by
+//! how well its independent storage containers agree ([`Consistency`]) so an examiner
+//! can tell a reliable first-connected time from a partial or contradicted one. Every
+//! finding is an **observation** ("consistent with …"), a
 //! `forensicnomicon::report::Finding`; the examiner draws the conclusions.
 //!
-//! ## Sources it will consume (Windows)
+//! ## What runs today
 //!
-//! - **Registry** (`winreg-artifacts`) — `USBSTOR`, `Enum\USB`, `MountedDevices`,
-//!   `WPDBUSENUM`, `VolumeInfoCache`, `MountPoints2`, `Amcache.hve`
-//! - **`Enum\SCSI`** — UASP / USB-3 drives (`uaspstor.sys`), which do **not** land in
-//!   `USBSTOR`
-//! - **SetupAPI** (`peripheral-core`) — `setupapi.dev.log` device-install events
-//! - **Event Log** (`winevt-forensic`) — the Partition/Diagnostic log volume serials
-//! - **LNK** (`lnk-core`) — recent-file volume-serial join
+//! - **Correlation core:** [`correlate`] / [`correlate_sources`] → [`DeviceHistory`]
+//!   with per-attribute [`Consistency`] + retained provenance; [`to_jsonl`] output.
+//! - **Findings:** [`audit`] → `forensicnomicon` findings (conflicts graded, MITRE
+//!   T1070.006 consistent-with; corroborations as reliable history).
+//! - **Sources:** [`PeripheralSource`] (`peripheral-core` — `setupapi.dev.log` now,
+//!   registry USBSTOR/SCSI/USB once `peripheral-core` 0.2 ships) and [`LnkSource`]
+//!   (`lnk-core` — the volume-serial file join).
+//! - **CLI:** the `usb4n6` binary runs the pipeline over setupapi + `.lnk` evidence.
+//!
+//! Correlation across the setupapi device serial and the LNK volume serial awaits the
+//! registry `MountedDevices` bridge (`peripheral-core` 0.2); event-log, macOS, and
+//! Linux sources follow. See `docs/roadmap.md` and `docs/feature-parity.md`.
 //!
 //! ## The wedge (why it is not a USB Detective clone)
 //!
