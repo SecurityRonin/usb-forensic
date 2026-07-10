@@ -81,7 +81,7 @@ mod tests {
     fn setupapi_connection_yields_first_connected_claim() {
         let conns = parse_setupapi(USBSTOR_HEADER, "setupapi.dev.log");
         assert_eq!(conns.len(), 1);
-        let claims = PeripheralSource::new(&conns).claims();
+        let claims = PeripheralSource::new(&conns, SourceKind::SetupApi).claims();
         let fc = claims
             .iter()
             .find(|c| c.attribute == Attribute::FirstConnected)
@@ -89,7 +89,37 @@ mod tests {
         // keyed by the last instance-id component (the instance serial).
         assert_eq!(fc.device, DeviceKey("7&1c2c4f0a&0".to_string()));
         assert_eq!(fc.provenance.source, SourceKind::SetupApi);
+        // A line-oriented source (no key_path) locates by file:line.
+        assert_eq!(fc.provenance.locator, "setupapi.dev.log:1");
         assert!(matches!(fc.value, Value::Timestamp(_)));
+    }
+
+    #[test]
+    fn source_kind_is_taken_from_the_caller() {
+        // The bin knows each connection's origin (setupapi vs registry vs Linux) and
+        // stamps it; the adapter faithfully carries whatever SourceKind it is given.
+        let conns = parse_setupapi(USBSTOR_HEADER, "syslog");
+        let claims = PeripheralSource::new(&conns, SourceKind::LinuxKernelLog).claims();
+        assert!(!claims.is_empty());
+        assert!(claims
+            .iter()
+            .all(|c| c.provenance.source == SourceKind::LinuxKernelLog));
+    }
+
+    #[test]
+    fn registry_key_path_is_used_as_the_locator() {
+        // A registry-sourced connection is not line-oriented (line 0) — its locator is
+        // the full key path, so provenance points at the exact hive key.
+        let mut conn = parse_setupapi(USBSTOR_HEADER, "SYSTEM")
+            .pop()
+            .expect("one conn");
+        let key = "ControlSet001\\Enum\\USBSTOR\\Disk&Ven_Generic&Prod_Flash\\7&1c2c4f0a&0";
+        conn.source.key_path = Some(key.to_string());
+        conn.source.line = 0;
+        let conns = [conn];
+        let claims = PeripheralSource::new(&conns, SourceKind::Usbstor).claims();
+        assert_eq!(claims[0].provenance.source, SourceKind::Usbstor);
+        assert_eq!(claims[0].provenance.locator, key);
     }
 
     #[test]
@@ -97,7 +127,7 @@ mod tests {
         let mut conn = parse_setupapi(USBSTOR_HEADER, "f").pop().expect("one conn");
         conn.device_serial = Some("AA11BB22".to_string());
         let conns = [conn];
-        let claims = PeripheralSource::new(&conns).claims();
+        let claims = PeripheralSource::new(&conns, SourceKind::SetupApi).claims();
         assert_eq!(claims[0].device, DeviceKey("AA11BB22".to_string()));
     }
 
@@ -107,7 +137,7 @@ mod tests {
         conn.last_arrival = Some(Stamp::inferred(1_700_000_500));
         conn.last_removal = Some(Stamp::inferred(1_700_000_900));
         let conns = [conn];
-        let claims = PeripheralSource::new(&conns).claims();
+        let claims = PeripheralSource::new(&conns, SourceKind::SetupApi).claims();
         assert_eq!(
             claims
                 .iter()
@@ -131,7 +161,7 @@ mod tests {
         conn.device_serial = None;
         conn.device_instance_id = "BAREINSTANCE".to_string();
         let conns = [conn];
-        let claims = PeripheralSource::new(&conns).claims();
+        let claims = PeripheralSource::new(&conns, SourceKind::SetupApi).claims();
         assert_eq!(claims[0].device, DeviceKey("BAREINSTANCE".to_string()));
     }
 }

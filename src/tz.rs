@@ -55,9 +55,22 @@ mod tests {
     }
 
     #[test]
-    fn clock_is_local_only_for_setupapi() {
+    fn clock_is_local_for_setupapi_and_linux_kernel_log() {
+        // setupapi.dev.log and Linux kernel logs write year-less/zone-less wall-clock.
         assert!(SourceKind::SetupApi.clock_is_local());
+        assert!(SourceKind::LinuxKernelLog.clock_is_local());
+        // Registry FILETIME and LNK epochs are true UTC.
         assert!(!SourceKind::Usbstor.clock_is_local());
         assert!(!SourceKind::Lnk.clock_is_local());
+    }
+
+    #[test]
+    fn linux_kernel_log_timestamp_is_shifted_like_setupapi() {
+        let mut claims = [claim(
+            SourceKind::LinuxKernelLog,
+            Value::Timestamp(1_700_000_000),
+        )];
+        normalize_local_clocks(&mut claims, 3600);
+        assert_eq!(claims[0].value, Value::Timestamp(1_699_996_400));
     }
 }

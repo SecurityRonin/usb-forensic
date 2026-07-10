@@ -118,6 +118,31 @@ pub struct Provenance {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct DeviceKey(pub String);
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn linux_kernel_log_is_its_own_container_with_a_local_clock() {
+        // A Linux syslog/dmesg file is a distinct tamper surface from any Windows
+        // artifact, and (like setupapi) records host-local wall-clock.
+        assert_eq!(
+            SourceKind::LinuxKernelLog.container(),
+            ArtifactContainer::KernelLog
+        );
+        assert!(SourceKind::LinuxKernelLog.clock_is_local());
+    }
+
+    #[test]
+    fn registry_source_lives_in_the_system_hive_container_in_utc() {
+        assert_eq!(
+            SourceKind::Usbstor.container(),
+            ArtifactContainer::SystemHive
+        );
+        assert!(!SourceKind::Usbstor.clock_is_local());
+    }
+}
+
 /// One atomic extracted fact about one device, from one source.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Claim {
