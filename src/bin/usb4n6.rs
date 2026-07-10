@@ -23,12 +23,15 @@ fn main() -> ExitCode {
         println!("usb4n6 {}", env!("CARGO_PKG_VERSION"));
         return ExitCode::SUCCESS;
     }
+    let table = args.iter().any(|a| a == "--table");
     let paths: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
     if paths.is_empty() {
-        eprintln!("usage: usb4n6 <file>...   (setupapi.dev.log and/or .lnk; or --version)");
+        eprintln!(
+            "usage: usb4n6 [--table] <file>...   (setupapi.dev.log and/or .lnk; or --version)"
+        );
         return ExitCode::FAILURE;
     }
-    run(&paths)
+    run(&paths, table)
 }
 
 /// A `.lnk` / jump-list Shell Link begins with `HeaderSize` = 0x4C little-endian.
@@ -36,7 +39,7 @@ fn is_shell_link(bytes: &[u8]) -> bool {
     bytes.get(..4) == Some(&[0x4C, 0x00, 0x00, 0x00])
 }
 
-fn run(paths: &[&String]) -> ExitCode {
+fn run(paths: &[&String], table: bool) -> ExitCode {
     let mut connections = Vec::new();
     let mut lnk_artifacts = Vec::new();
 
@@ -66,11 +69,15 @@ fn run(paths: &[&String]) -> ExitCode {
     let lnk = LnkSource::new(&lnk_artifacts);
     let histories = correlate_sources(&[&peripheral, &lnk]);
 
-    match to_jsonl(&histories) {
-        Ok(jsonl) => print!("{jsonl}"),
-        Err(err) => {
-            eprintln!("usb4n6: serialization failed: {err}");
-            return ExitCode::FAILURE;
+    if table {
+        print!("{}", usb_forensic::render_table(&histories));
+    } else {
+        match to_jsonl(&histories) {
+            Ok(jsonl) => print!("{jsonl}"),
+            Err(err) => {
+                eprintln!("usb4n6: serialization failed: {err}");
+                return ExitCode::FAILURE;
+            }
         }
     }
 
