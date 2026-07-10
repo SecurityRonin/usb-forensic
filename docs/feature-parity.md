@@ -72,7 +72,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 | Source | OS | Status |
 |---|---|---|
 | Unified logs (USBMSC), `/var/log/daily.out`, IORegistry snapshots, `com.apple.iPod.plist` | macOS | 📋 |
-| journald / syslog kernel plug events, GVFS metadata, `recently-used.xbel` | Linux | 📋 |
+| syslog/dmesg kernel USB blocks (journald/GVFS planned) | Linux | 🏗 validated reader in peripheral-core PR #2 |
 
 ## 5. Output & reporting
 
