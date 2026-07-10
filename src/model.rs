@@ -93,6 +93,9 @@ pub enum Attribute {
     VolumeSerial,
     /// A file accessed from the device (e.g. an LNK target) — the file-to-device link.
     AccessedFile,
+    /// A drive letter the device's volume was mounted as (e.g. `E:`), from the
+    /// `MountedDevices` drive-letter↔device join.
+    DriveLetter,
 }
 
 /// A comparable claim value, normalized by the source adapter.

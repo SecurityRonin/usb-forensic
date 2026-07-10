@@ -77,6 +77,17 @@ fn push_conn(conn: &DeviceConnection, source: SourceKind, out: &mut Vec<Claim>) 
     if let Some(s) = &conn.last_removal {
         out.push(claim(Attribute::LastRemoved, s.value));
     }
+    if let Some(letter) = conn.drive_letter {
+        out.push(Claim {
+            device: device.clone(),
+            attribute: Attribute::DriveLetter,
+            value: Value::Text(format!("{letter}:")),
+            provenance: Provenance {
+                source,
+                locator: locator.clone(),
+            },
+        });
+    }
 }
 
 #[cfg(test)]
