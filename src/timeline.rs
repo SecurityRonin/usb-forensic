@@ -35,15 +35,35 @@ pub struct TimelineEvent {
 /// *when-did-what-happen* view, not the full per-device record.
 #[must_use]
 pub fn super_timeline(histories: &[DeviceHistory]) -> Vec<TimelineEvent> {
-    let _ = histories;
-    Vec::new()
+    let mut events: Vec<TimelineEvent> = Vec::new();
+    for history in histories {
+        for attr in &history.attributes {
+            for pv in &attr.values {
+                if let Value::Timestamp(when) = pv.value {
+                    events.push(TimelineEvent {
+                        when,
+                        device: history.device.clone(),
+                        attribute: attr.attribute,
+                        source: pv.provenance.source,
+                        locator: pv.provenance.locator.clone(),
+                    });
+                }
+            }
+        }
+    }
+    events.sort();
+    events
 }
 
 /// Serialize the super-timeline as JSONL — one event per line, chronological, greppable
 /// and pipeable.
 pub fn timeline_to_jsonl(events: &[TimelineEvent]) -> Result<String, serde_json::Error> {
-    let _ = events;
-    Ok(String::new())
+    let mut out = String::new();
+    for event in events {
+        out.push_str(&serde_json::to_string(event)?);
+        out.push('\n');
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

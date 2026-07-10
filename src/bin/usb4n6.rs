@@ -7,13 +7,14 @@
 //! writes output.
 //!
 //! ```text
-//! usb4n6 [--table|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] <file>...
+//! usb4n6 [--table|--timeline|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] <file>...
 //!     # files: setupapi.dev.log, a SYSTEM hive, .lnk, *.automaticDestinations-ms,
 //!     #        or a Linux syslog/dmesg (type auto-detected by content)
 //! usb4n6 --version
 //! ```
-//! stdout: JSONL (default), a results grid (`--table`), a Markdown court report
-//! (`--report`), or a native `.docx`/`.pdf` report. `--tz-offset=<secs>` normalizes
+//! stdout: JSONL (default), a results grid (`--table`), the aggregate super-timeline as
+//! JSONL (`--timeline`), a Markdown court report (`--report`), or a native `.docx`/`.pdf`
+//! report. `--tz-offset=<secs>` normalizes
 //! host-local (setupapi/Linux) timestamps to UTC. `--year=<YYYY>` supplies the
 //! reference year for year-less Linux syslog timestamps (required when a syslog is
 //! given). stderr: a summary and graded findings.
@@ -41,6 +42,8 @@ fn main() -> ExitCode {
         Output::Report
     } else if args.iter().any(|a| a == "--table") {
         Output::Table
+    } else if args.iter().any(|a| a == "--timeline") {
+        Output::Timeline
     } else {
         Output::Jsonl
     };
@@ -57,8 +60,9 @@ fn main() -> ExitCode {
     let paths: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
     if paths.is_empty() {
         eprintln!(
-            "usage: usb4n6 [--table|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] \
-             <file>...  (setupapi.dev.log/SYSTEM hive/.lnk/jumplist/Linux syslog; -V)"
+            "usage: usb4n6 [--table|--timeline|--report|--docx|--pdf] [--tz-offset=<secs>] \
+             [--year=<YYYY>] <file>...  \
+             (setupapi.dev.log/SYSTEM hive/.lnk/jumplist/Linux syslog; -V)"
         );
         return ExitCode::FAILURE;
     }
@@ -72,6 +76,9 @@ enum Output {
     Jsonl,
     /// A human-readable results grid.
     Table,
+    /// The aggregate super-timeline: every timestamped event across all devices,
+    /// chronological, as JSONL (one event per line).
+    Timeline,
     /// A court-oriented Markdown forensic report.
     Report,
     /// The forensic report as a native Word `.docx` (binary; redirect to a file).
@@ -221,6 +228,16 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
             }
         },
         Output::Table => usb_forensic::render_table(&histories),
+        Output::Timeline => {
+            let events = usb_forensic::super_timeline(&histories);
+            match usb_forensic::timeline_to_jsonl(&events) {
+                Ok(jsonl) => jsonl,
+                Err(err) => {
+                    eprintln!("usb4n6: serialization failed: {err}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
         Output::Report => usb_forensic::render_report(&histories, &findings),
         Output::Docx => {
             if !write_binary(&usb_forensic::render_docx(&histories, &findings), "docx") {
