@@ -3,6 +3,7 @@
 //! eyes (datetimes formatted, consistency labelled, values unwrapped).
 
 use crate::{DeviceHistory, Value};
+use forensicnomicon::report::Finding;
 
 /// Format a Unix-epoch-seconds timestamp as `YYYY-MM-DD HH:MM:SS UTC`.
 ///
@@ -62,11 +63,85 @@ pub fn render_table(histories: &[DeviceHistory]) -> String {
     out
 }
 
+/// Neutralize `|` so a value cannot break a Markdown table cell.
+fn cell(text: &str) -> String {
+    text.replace('|', "\\|")
+}
+
+/// Render a court-oriented Markdown forensic report: an executive summary, a per-device
+/// provenance table (every value with its source and locator), the graded findings, and
+/// a methodology/limitations note. Convert to PDF/DOCX downstream (e.g. `pandoc`).
+///
+/// Follows the expert-witness discipline: values are observed facts; findings are
+/// observations ("consistent with"), never legal conclusions.
+#[must_use]
+pub fn render_report(histories: &[DeviceHistory], findings: &[Finding]) -> String {
+    use std::fmt::Write as _;
+    let mut r = String::new();
+    let _ = writeln!(r, "# USB Device History — Forensic Report\n");
+    let _ = writeln!(r, "## Executive Summary\n");
+    let _ = writeln!(
+        r,
+        "Reconstructed {} device history record(s) from correlated evidence; \
+         {} finding(s) surfaced. Every reported value retains its source and locator. \
+         Findings are observations (\"consistent with\"), not conclusions.\n",
+        histories.len(),
+        findings.len()
+    );
+
+    let _ = writeln!(r, "## Devices\n");
+    for history in histories {
+        let _ = writeln!(r, "### Device: {}\n", history.device.0);
+        let _ = writeln!(r, "| Attribute | Consistency | Value | Source | Locator |");
+        let _ = writeln!(r, "|---|---|---|---|---|");
+        for attr in &history.attributes {
+            for pv in &attr.values {
+                let _ = writeln!(
+                    r,
+                    "| {:?} | {} | {} | {:?} | {} |",
+                    attr.attribute,
+                    attr.consistency.label(),
+                    cell(&render_value(&pv.value)),
+                    pv.provenance.source,
+                    cell(&pv.provenance.locator),
+                );
+            }
+        }
+        let _ = writeln!(r);
+    }
+
+    let _ = writeln!(r, "## Findings\n");
+    if findings.is_empty() {
+        let _ = writeln!(r, "No cross-source conflicts or corroborations surfaced.\n");
+    } else {
+        for finding in findings {
+            let _ = writeln!(
+                r,
+                "- **[{:?}] {}** — {}",
+                finding.severity, finding.code, finding.note
+            );
+        }
+        let _ = writeln!(r);
+    }
+
+    let _ = writeln!(r, "## Methodology & Limitations\n");
+    let _ = writeln!(
+        r,
+        "- Values are graded by tamper-independent storage container: agreement across \
+         sources sharing one container is not counted as corroboration.\n\
+         - A conflict is reported as \"not consistent with\", never as proven tampering; \
+         every value is shown with its source so it can be independently verified.\n\
+         - The findings are observations of the evidence; the Court may draw its own \
+         conclusions."
+    );
+    r
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::{Attribute, DeviceKey, Provenance, SourceKind};
-    use crate::{correlate, Claim};
+    use crate::{audit, correlate, Claim};
 
     #[test]
     fn format_epoch_matches_the_date_oracle() {
@@ -106,5 +181,64 @@ mod tests {
         );
         assert!(table.contains("KINGSTON"), "text value rendered");
         assert!(table.contains("single-source"), "consistency labelled");
+    }
+
+    fn claim(dev: &str, attr: Attribute, v: Value, src: SourceKind, loc: &str) -> Claim {
+        Claim {
+            device: DeviceKey(dev.into()),
+            attribute: attr,
+            value: v,
+            provenance: Provenance {
+                source: src,
+                locator: loc.into(),
+            },
+        }
+    }
+
+    #[test]
+    fn report_has_provenance_table_and_findings_with_hedged_language() {
+        // Two containers disagreeing → a conflict finding.
+        let claims = [
+            claim(
+                "SN1",
+                Attribute::FirstConnected,
+                Value::Timestamp(1_681_760_520),
+                SourceKind::Usbstor,
+                "k",
+            ),
+            claim(
+                "SN1",
+                Attribute::FirstConnected,
+                Value::Timestamp(1_600_357_894),
+                SourceKind::SetupApi,
+                "setupapi:9",
+            ),
+        ];
+        let histories = correlate(&claims);
+        let report = render_report(&histories, &audit(&histories));
+        assert!(report.contains("# USB Device History — Forensic Report"));
+        assert!(report.contains("### Device: SN1"));
+        assert!(report.contains("| Attribute | Consistency | Value | Source | Locator |"));
+        assert!(
+            report.contains("setupapi:9"),
+            "locator appears in the provenance table"
+        );
+        assert!(
+            report.contains("USB-TIMESTAMP-CONFLICT"),
+            "the conflict finding is listed"
+        );
+        assert!(
+            report.contains("consistent with"),
+            "hedged, non-conclusive language"
+        );
+        assert!(report.contains("Court may draw its own conclusions"));
+    }
+
+    #[test]
+    fn report_with_no_findings_says_so() {
+        let report = render_report(&[], &[]);
+        assert!(report.contains("No cross-source conflicts or corroborations surfaced."));
+        // pipe-guard: a value containing '|' is neutralized.
+        assert_eq!(cell("a|b"), "a\\|b");
     }
 }

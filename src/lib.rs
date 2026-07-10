@@ -41,7 +41,7 @@ pub mod sources;
 
 pub use correlate::{correlate, to_jsonl, CorrelatedAttribute, DeviceHistory, ProvenancedValue};
 pub use model::{ArtifactContainer, Attribute, Claim, DeviceKey, Provenance, SourceKind, Value};
-pub use render::{format_epoch, render_table};
+pub use render::{format_epoch, render_report, render_table};
 pub use report::audit;
 pub use source::{correlate_sources, HistorySource};
 pub use sources::lnk::{LnkArtifact, LnkSource};

@@ -23,15 +23,32 @@ fn main() -> ExitCode {
         println!("usb4n6 {}", env!("CARGO_PKG_VERSION"));
         return ExitCode::SUCCESS;
     }
-    let table = args.iter().any(|a| a == "--table");
+    let mode = if args.iter().any(|a| a == "--report") {
+        Output::Report
+    } else if args.iter().any(|a| a == "--table") {
+        Output::Table
+    } else {
+        Output::Jsonl
+    };
     let paths: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
     if paths.is_empty() {
         eprintln!(
-            "usage: usb4n6 [--table] <file>...   (setupapi.dev.log and/or .lnk; or --version)"
+            "usage: usb4n6 [--table|--report] <file>...   (setupapi.dev.log and/or .lnk; -V)"
         );
         return ExitCode::FAILURE;
     }
-    run(&paths, table)
+    run(&paths, mode)
+}
+
+/// How to render the correlated histories on stdout.
+#[derive(Clone, Copy)]
+enum Output {
+    /// One JSON object per device (machine, round-trippable) — the default.
+    Jsonl,
+    /// A human-readable results grid.
+    Table,
+    /// A court-oriented Markdown forensic report.
+    Report,
 }
 
 /// A `.lnk` / jump-list Shell Link begins with `HeaderSize` = 0x4C little-endian.
@@ -39,7 +56,7 @@ fn is_shell_link(bytes: &[u8]) -> bool {
     bytes.get(..4) == Some(&[0x4C, 0x00, 0x00, 0x00])
 }
 
-fn run(paths: &[&String], table: bool) -> ExitCode {
+fn run(paths: &[&String], mode: Output) -> ExitCode {
     let mut connections = Vec::new();
     let mut lnk_artifacts = Vec::new();
 
@@ -69,19 +86,21 @@ fn run(paths: &[&String], table: bool) -> ExitCode {
     let lnk = LnkSource::new(&lnk_artifacts);
     let histories = correlate_sources(&[&peripheral, &lnk]);
 
-    if table {
-        print!("{}", usb_forensic::render_table(&histories));
-    } else {
-        match to_jsonl(&histories) {
-            Ok(jsonl) => print!("{jsonl}"),
+    let findings = audit(&histories);
+
+    let rendered = match mode {
+        Output::Jsonl => match to_jsonl(&histories) {
+            Ok(jsonl) => jsonl,
             Err(err) => {
                 eprintln!("usb4n6: serialization failed: {err}");
                 return ExitCode::FAILURE;
             }
-        }
-    }
+        },
+        Output::Table => usb_forensic::render_table(&histories),
+        Output::Report => usb_forensic::render_report(&histories, &findings),
+    };
+    print!("{rendered}");
 
-    let findings = audit(&histories);
     eprintln!(
         "usb4n6: {} device(s) from {} source record(s), {} finding(s)",
         histories.len(),
