@@ -28,7 +28,9 @@ fn main() -> ExitCode {
         println!("usb4n6 {}", env!("CARGO_PKG_VERSION"));
         return ExitCode::SUCCESS;
     }
-    let mode = if args.iter().any(|a| a == "--report") {
+    let mode = if args.iter().any(|a| a == "--docx") {
+        Output::Docx
+    } else if args.iter().any(|a| a == "--report") {
         Output::Report
     } else if args.iter().any(|a| a == "--table") {
         Output::Table
@@ -38,7 +40,7 @@ fn main() -> ExitCode {
     let paths: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
     if paths.is_empty() {
         eprintln!(
-            "usage: usb4n6 [--table|--report] <file>...   (setupapi.dev.log and/or .lnk; -V)"
+            "usage: usb4n6 [--table|--report|--docx] <file>...   (setupapi.dev.log/.lnk/jumplist; -V)"
         );
         return ExitCode::FAILURE;
     }
@@ -54,6 +56,8 @@ enum Output {
     Table,
     /// A court-oriented Markdown forensic report.
     Report,
+    /// The forensic report as a native Word `.docx` (binary; redirect to a file).
+    Docx,
 }
 
 /// A `.lnk` Shell Link begins with `HeaderSize` = 0x4C little-endian.
@@ -118,6 +122,15 @@ fn run(paths: &[&String], mode: Output) -> ExitCode {
         },
         Output::Table => usb_forensic::render_table(&histories),
         Output::Report => usb_forensic::render_report(&histories, &findings),
+        Output::Docx => {
+            use std::io::Write as _;
+            let docx = usb_forensic::render_docx(&histories, &findings);
+            if let Err(err) = std::io::stdout().write_all(&docx) {
+                eprintln!("usb4n6: cannot write docx: {err}");
+                return ExitCode::FAILURE;
+            }
+            String::new()
+        }
     };
     print!("{rendered}");
 

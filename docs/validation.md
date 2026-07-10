@@ -34,3 +34,12 @@ fleet-wide `docs/corpus-catalog.md` (large images gitignored, downloaded per the
 fleet test-data provenance standard). Real, ground-truth-bearing images are preferred
 over synthetic fixtures; synthetic images are used only for adversarial edge cases
 real corpora lack (truncation, lying counts, offset overflow).
+
+## DOCX export (Tier-2, independent oracle)
+
+`render_docx` writes a native Word `.docx` with no dependency (hand-written stored ZIP +
+CRC-32 + OOXML). It is validated against **python-docx** / Python `zipfile` as an
+independent oracle: the generated file is a valid ZIP, every entry passes its CRC check,
+the three OOXML parts are present, and python-docx opens it and reads the report
+paragraphs (including the per-value provenance lines). Verified on setupapi + LNK
+evidence via `usb4n6 --docx`.
