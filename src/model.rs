@@ -56,6 +56,19 @@ impl SourceKind {
             Self::Lnk | Self::JumpList => ArtifactContainer::LnkFile,
         }
     }
+
+    /// Whether this source records timestamps in **host-local** time (rather than UTC).
+    ///
+    /// `setupapi.dev.log` and Linux kernel logs write local wall-clock with no zone, so
+    /// their readers convert them naively (local-as-UTC). Registry `FILETIME`, event-log
+    /// `FILETIME`, and LNK/jump-list epochs are true UTC. [`normalize_local_clocks`]
+    /// uses this to correct local timestamps to UTC given the host's offset.
+    ///
+    /// [`normalize_local_clocks`]: crate::normalize_local_clocks
+    #[must_use]
+    pub fn clock_is_local(self) -> bool {
+        matches!(self, Self::SetupApi)
+    }
 }
 
 /// Which device attribute a claim describes.

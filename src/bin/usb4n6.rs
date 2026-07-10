@@ -37,14 +37,20 @@ fn main() -> ExitCode {
     } else {
         Output::Jsonl
     };
+    // Optional host UTC offset (seconds) to normalize local-clock (setupapi/Linux) times.
+    let tz_offset = args.iter().find_map(|a| {
+        a.strip_prefix("--tz-offset=")
+            .and_then(|v| v.parse::<i64>().ok())
+    });
     let paths: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
     if paths.is_empty() {
         eprintln!(
-            "usage: usb4n6 [--table|--report|--docx] <file>...   (setupapi.dev.log/.lnk/jumplist; -V)"
+            "usage: usb4n6 [--table|--report|--docx] [--tz-offset=<secs>] <file>...  \
+             (setupapi.dev.log/.lnk/jumplist; -V)"
         );
         return ExitCode::FAILURE;
     }
-    run(&paths, mode)
+    run(&paths, mode, tz_offset)
 }
 
 /// How to render the correlated histories on stdout.
@@ -70,7 +76,7 @@ fn is_compound_file(bytes: &[u8]) -> bool {
     bytes.get(..8) == Some(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1])
 }
 
-fn run(paths: &[&String], mode: Output) -> ExitCode {
+fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>) -> ExitCode {
     let mut connections = Vec::new();
     let mut lnk_artifacts = Vec::new();
     let mut jumplists = Vec::new();
@@ -108,7 +114,16 @@ fn run(paths: &[&String], mode: Output) -> ExitCode {
     let peripheral = PeripheralSource::new(&connections);
     let lnk = LnkSource::new(&lnk_artifacts);
     let jumplist = JumpListSource::new(&jumplists);
-    let histories = correlate_sources(&[&peripheral, &lnk, &jumplist]);
+    let sources: [&dyn usb_forensic::HistorySource; 3] = [&peripheral, &lnk, &jumplist];
+
+    let histories = if let Some(offset) = tz_offset {
+        // Normalize local-clock timestamps to UTC before correlating.
+        let mut claims: Vec<_> = sources.iter().flat_map(|s| s.claims()).collect();
+        usb_forensic::normalize_local_clocks(&mut claims, offset);
+        usb_forensic::correlate(&claims)
+    } else {
+        correlate_sources(&sources)
+    };
 
     let findings = audit(&histories);
 

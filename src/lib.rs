@@ -39,6 +39,7 @@ pub mod render;
 pub mod report;
 pub mod source;
 pub mod sources;
+pub mod tz;
 
 pub use correlate::{correlate, to_jsonl, CorrelatedAttribute, DeviceHistory, ProvenancedValue};
 pub use docx::render_docx;
@@ -49,6 +50,7 @@ pub use source::{correlate_sources, HistorySource};
 pub use sources::jumplist::{JumpListArtifact, JumpListSource};
 pub use sources::lnk::{LnkArtifact, LnkSource};
 pub use sources::peripheral::PeripheralSource;
+pub use tz::normalize_local_clocks;
 
 use serde::Serialize;
 
