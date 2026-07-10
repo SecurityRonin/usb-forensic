@@ -39,11 +39,11 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | `VolumeInfoCache` (SOFTWARE) | volume label ↔ serial history | USB Detective | 📋 |
 | `MountPoints2` (NTUSER.DAT) | per-user mounts | USB Detective, USBFT, RegRipper | 📋 |
 | `Amcache.hve` | execution / first-seen corroboration | USB Detective | 📋 |
-| SetupAPI (`setupapi.dev.log`) | first-install time (local, TZ-normalized) | all dedicated | 📋 |
+| SetupAPI (`setupapi.dev.log`) | first-install time (local, TZ-normalized) | all dedicated | ✅ (`PeripheralSource`) |
 | Partition/Diagnostic event log | volume serial numbers, connect events | USB Detective | 📋 |
 | Other USB event-log providers (Kernel-PnP, DriverFrameworks-UserMode, Ntfs) | connect/disconnect, mount | RegRipper/KAPE workflows | 📋 |
-| LNK files | files opened on device (volume-serial join) | USB Detective, USBFT | 📋 |
-| Jump Lists | recent items per app on device | USB Detective | 📋 |
+| LNK files | files opened on device (volume-serial join) | USB Detective, USBFT | ✅ (`LnkSource`) |
+| Jump Lists | recent items per app on device | USB Detective | ✅ (`JumpListSource`, MRU access times) |
 | ShellBags | folders browsed on device | USB Detective, USBFT | 📋 |
 
 ## 3. Correlation & scoring (the moat)
