@@ -31,15 +31,16 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 
 | Artifact | Signal | Seen in | Status |
 |---|---|---|---|
-| `USBSTOR` (SYSTEM) | device class/serial/VID-PID, first/last connect | all dedicated | 📋 |
-| `Enum\USB` (SYSTEM) | parent USB device, container id | USB Detective, RegRipper | 📋 |
-| **`Enum\SCSI`** (UASP / USB-3 drives) | modern drives absent from `USBSTOR` | (gap in most) | 📋 |
-| `MountedDevices` (SYSTEM) | drive-letter ↔ device mapping | USB Detective, USBFT, RegRipper | 📋 |
+| `USBSTOR` (SYSTEM) | device class/serial/VID-PID, first/last connect | all dedicated | ✅ (`PeripheralSource` via `peripheral-core` registry reader; regipy-validated) |
+| `Enum\USB` (SYSTEM) | parent USB device, container id | USB Detective, RegRipper | ✅ (same reader) |
+| **`Enum\SCSI`** (UASP / USB-3 drives) | modern drives absent from `USBSTOR` | (gap in most) | ✅ (same reader; Szechuan VMware disk validated) |
+| `MountedDevices` (SYSTEM) | drive-letter ↔ device mapping | USB Detective, USBFT, RegRipper | 📋 (next: decoder in `peripheral-core`, drive-letter→device join) |
 | `WPDBUSENUM` / Windows Portable Devices (SOFTWARE) | MTP/PTP + mass-storage, volume label | USB Detective, USBFT | 📋 |
 | `VolumeInfoCache` (SOFTWARE) | volume label ↔ serial history | USB Detective | 📋 |
 | `MountPoints2` (NTUSER.DAT) | per-user mounts | USB Detective, USBFT, RegRipper | 📋 |
 | `Amcache.hve` | execution / first-seen corroboration | USB Detective | 📋 |
 | SetupAPI (`setupapi.dev.log`) | first-install time (local, TZ-normalized) | all dedicated | ✅ (`PeripheralSource`) |
+| Linux kernel log (`syslog`/`dmesg`) | USB enumeration (VID/PID, serial, first-seen) | USBFT (parses) | ✅ (`PeripheralSource` via `peripheral-core` `linux_syslog`; UAC-syslog validated) |
 | Partition/Diagnostic event log | volume serial numbers, connect events | USB Detective | 📋 |
 | Other USB event-log providers (Kernel-PnP, DriverFrameworks-UserMode, Ntfs) | connect/disconnect, mount | RegRipper/KAPE workflows | 📋 |
 | LNK files | files opened on device (volume-serial join) | USB Detective, USBFT | ✅ (`LnkSource`) |
@@ -72,7 +73,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 | Source | OS | Status |
 |---|---|---|
 | Unified logs (USBMSC), `/var/log/daily.out`, IORegistry snapshots, `com.apple.iPod.plist` | macOS | 📋 |
-| syslog/dmesg kernel USB blocks (journald/GVFS planned) | Linux | 🏗 validated reader in peripheral-core PR #2 |
+| syslog/dmesg kernel USB blocks (journald/GVFS planned) | Linux | ✅ wired end-to-end (`peripheral-core` `linux_syslog`, `--year`); UAC-syslog validated |
 
 ## 5. Output & reporting
 
@@ -81,7 +82,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 | Results grid / high-level report | USB Detective, USBFT, Historian, USBDeview | ✅ (`usb4n6 --table`) |
 | Verbose per-value report with provenance | USB Detective | ✅ (`usb4n6 --report`) |
 | Per-device timeline | USB Detective | ✅ (per-device JSONL / report block) |
-| Aggregate super-timeline | USB Detective | 📋 |
+| Aggregate super-timeline | USB Detective | ✅ (`usb4n6 --timeline`; every timestamped event across all devices, chronological JSONL) |
 | Opened/accessed-files report | USB Detective | 📋 |
 | Machine-readable output (JSONL, diffable, pipeable) | (weak in all — Excel/CSV only) | ✅ (`to_jsonl`, default) |
 | `forensicnomicon::report` findings (fleet-uniform, MITRE-tagged) | (fleet-only) | ✅ (`audit`) |
