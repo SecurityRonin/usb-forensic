@@ -7,20 +7,24 @@
 //! writes output.
 //!
 //! ```text
-//! usb4n6 [--table|--report|--docx|--pdf] [--tz-offset=<secs>] <file>...
-//!     # files: setupapi.dev.log, .lnk, *.automaticDestinations-ms (type auto-detected)
+//! usb4n6 [--table|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] <file>...
+//!     # files: setupapi.dev.log, a SYSTEM hive, .lnk, *.automaticDestinations-ms,
+//!     #        or a Linux syslog/dmesg (type auto-detected by content)
 //! usb4n6 --version
 //! ```
 //! stdout: JSONL (default), a results grid (`--table`), a Markdown court report
 //! (`--report`), or a native `.docx`/`.pdf` report. `--tz-offset=<secs>` normalizes
-//! host-local (setupapi/Linux) timestamps to UTC. stderr: a summary and graded findings.
-//! Registry (USBSTOR/SCSI/USB) and event-log sources join here as they land.
+//! host-local (setupapi/Linux) timestamps to UTC. `--year=<YYYY>` supplies the
+//! reference year for year-less Linux syslog timestamps (required when a syslog is
+//! given). stderr: a summary and graded findings.
 
+use peripheral_core::linux_syslog::parse_linux_syslog;
+use peripheral_core::registry::parse_registry;
 use peripheral_core::setupapi::parse_setupapi;
 use std::process::ExitCode;
 use usb_forensic::{
-    audit, correlate_sources, to_jsonl, JumpListArtifact, JumpListSource, LnkArtifact, LnkSource,
-    PeripheralSource,
+    audit, correlate_sources, to_jsonl, HistorySource, JumpListArtifact, JumpListSource,
+    LnkArtifact, LnkSource, PeripheralSource, SourceKind,
 };
 
 fn main() -> ExitCode {
@@ -45,15 +49,20 @@ fn main() -> ExitCode {
         a.strip_prefix("--tz-offset=")
             .and_then(|v| v.parse::<i64>().ok())
     });
+    // Reference year for year-less Linux syslog timestamps (required for a syslog).
+    let year = args.iter().find_map(|a| {
+        a.strip_prefix("--year=")
+            .and_then(|v| v.parse::<i64>().ok())
+    });
     let paths: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
     if paths.is_empty() {
         eprintln!(
-            "usage: usb4n6 [--table|--report|--docx|--pdf] [--tz-offset=<secs>] <file>...  \
-             (setupapi.dev.log/.lnk/jumplist; -V)"
+            "usage: usb4n6 [--table|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] \
+             <file>...  (setupapi.dev.log/SYSTEM hive/.lnk/jumplist/Linux syslog; -V)"
         );
         return ExitCode::FAILURE;
     }
-    run(&paths, mode, tz_offset)
+    run(&paths, mode, tz_offset, year)
 }
 
 /// How to render the correlated histories on stdout.
@@ -81,6 +90,17 @@ fn is_compound_file(bytes: &[u8]) -> bool {
     bytes.get(..8) == Some(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1])
 }
 
+/// A Windows registry hive begins with the `regf` base-block signature.
+fn is_registry_hive(bytes: &[u8]) -> bool {
+    bytes.get(..4) == Some(b"regf")
+}
+
+/// A Linux kernel log carries the `New USB device found` enumeration marker that the
+/// syslog reader keys on; setupapi text does not.
+fn looks_like_linux_syslog(text: &str) -> bool {
+    text.contains("New USB device found")
+}
+
 /// Write a binary artifact to stdout; returns `false` (and reports) on I/O error.
 fn write_binary(bytes: &[u8], label: &str) -> bool {
     use std::io::Write as _;
@@ -93,22 +113,45 @@ fn write_binary(bytes: &[u8], label: &str) -> bool {
     }
 }
 
-fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>) -> ExitCode {
-    let mut connections = Vec::new();
-    let mut lnk_artifacts = Vec::new();
-    let mut jumplists = Vec::new();
+/// Device connections and artifacts gathered from the input files, grouped by origin
+/// so each batch is stamped with the right [`SourceKind`] (which drives container /
+/// clock-locality reasoning downstream).
+#[derive(Default)]
+struct Ingested {
+    setupapi: Vec<peripheral_core::DeviceConnection>,
+    registry: Vec<peripheral_core::DeviceConnection>,
+    linux: Vec<peripheral_core::DeviceConnection>,
+    lnk: Vec<LnkArtifact>,
+    jumplists: Vec<JumpListArtifact>,
+}
 
+impl Ingested {
+    /// Total source records read, across every origin.
+    fn record_count(&self) -> usize {
+        self.setupapi.len()
+            + self.registry.len()
+            + self.linux.len()
+            + self.lnk.len()
+            + self.jumplists.len()
+    }
+}
+
+/// Read and classify every input file by content, routing it to the matching reader.
+/// Returns `None` (after reporting) on a fatal error: an unreadable file, or a Linux
+/// syslog with no `--year` (its year-less timestamps would otherwise be silently wrong).
+fn ingest(paths: &[&String], year: Option<i64>) -> Option<Ingested> {
+    let mut g = Ingested::default();
     for path in paths {
         let bytes = match std::fs::read(path.as_str()) {
             Ok(bytes) => bytes,
             Err(err) => {
                 eprintln!("usb4n6: cannot read {path}: {err}");
-                return ExitCode::FAILURE;
+                return None;
             }
         };
         if is_compound_file(&bytes) {
             match lnk_core::parse_automatic_destinations(&bytes, Some(path)) {
-                Some(list) => jumplists.push(JumpListArtifact {
+                Some(list) => g.jumplists.push(JumpListArtifact {
                     source_path: (*path).clone(),
                     list,
                 }),
@@ -116,22 +159,47 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>) -> ExitCode {
             }
         } else if is_shell_link(&bytes) {
             match lnk_core::parse_shell_link(&bytes) {
-                Some(link) => lnk_artifacts.push(LnkArtifact {
+                Some(link) => g.lnk.push(LnkArtifact {
                     source_path: (*path).clone(),
                     link,
                 }),
                 None => eprintln!("usb4n6: {path}: not a valid Shell Link, skipping"),
             }
+        } else if is_registry_hive(&bytes) {
+            match winreg_core::hive::Hive::from_bytes(bytes) {
+                Ok(hive) => g.registry.extend(parse_registry(&hive, path)),
+                Err(err) => eprintln!("usb4n6: {path}: not a valid registry hive: {err}"),
+            }
         } else {
             let text = String::from_utf8_lossy(&bytes);
-            connections.extend(parse_setupapi(&text, path));
+            if looks_like_linux_syslog(&text) {
+                let Some(y) = year else {
+                    eprintln!(
+                        "usb4n6: {path}: Linux syslog timestamps are year-less — \
+                         pass --year=<YYYY>"
+                    );
+                    return None;
+                };
+                g.linux.extend(parse_linux_syslog(&text, path, y));
+            } else {
+                g.setupapi.extend(parse_setupapi(&text, path));
+            }
         }
     }
+    Some(g)
+}
 
-    let peripheral = PeripheralSource::new(&connections);
-    let lnk = LnkSource::new(&lnk_artifacts);
-    let jumplist = JumpListSource::new(&jumplists);
-    let sources: [&dyn usb_forensic::HistorySource; 3] = [&peripheral, &lnk, &jumplist];
+fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64>) -> ExitCode {
+    let Some(g) = ingest(paths, year) else {
+        return ExitCode::FAILURE;
+    };
+
+    let setupapi = PeripheralSource::new(&g.setupapi, SourceKind::SetupApi);
+    let registry = PeripheralSource::new(&g.registry, SourceKind::Usbstor);
+    let linux = PeripheralSource::new(&g.linux, SourceKind::LinuxKernelLog);
+    let lnk = LnkSource::new(&g.lnk);
+    let jumplist = JumpListSource::new(&g.jumplists);
+    let sources: [&dyn HistorySource; 5] = [&setupapi, &registry, &linux, &lnk, &jumplist];
 
     let histories = if let Some(offset) = tz_offset {
         // Normalize local-clock timestamps to UTC before correlating.
@@ -172,7 +240,7 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>) -> ExitCode {
     eprintln!(
         "usb4n6: {} device(s) from {} source record(s), {} finding(s)",
         histories.len(),
-        connections.len() + lnk_artifacts.len() + jumplists.len(),
+        g.record_count(),
         findings.len()
     );
     for finding in &findings {

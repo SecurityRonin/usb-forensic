@@ -9,17 +9,25 @@
 use crate::{Attribute, Claim, DeviceKey, HistorySource, Provenance, SourceKind, Value};
 use peripheral_core::DeviceConnection;
 
-/// A [`HistorySource`] over decoded [`DeviceConnection`]s.
+/// A [`HistorySource`] over decoded [`DeviceConnection`]s from one origin.
+///
+/// A single `peripheral-core` parse call handles one origin at a time —
+/// `parse_setupapi`, `parse_registry`, or `parse_linux_syslog` — so the caller
+/// knows which [`SourceKind`] every connection in the batch came from and passes
+/// it in. The adapter carries that verbatim onto each [`Claim`]'s provenance,
+/// which is what drives the container / clock-locality reasoning downstream.
 pub struct PeripheralSource<'a> {
     conns: &'a [DeviceConnection],
+    source: SourceKind,
 }
 
 impl<'a> PeripheralSource<'a> {
-    /// Wrap decoded device connections (from `peripheral_core::setupapi::parse_setupapi`
-    /// or its registry reader).
+    /// Wrap decoded device connections, all from `source` (e.g.
+    /// [`SourceKind::SetupApi`], [`SourceKind::Usbstor`] for the registry reader,
+    /// or [`SourceKind::LinuxKernelLog`]).
     #[must_use]
-    pub fn new(conns: &'a [DeviceConnection]) -> Self {
-        Self { conns }
+    pub fn new(conns: &'a [DeviceConnection], source: SourceKind) -> Self {
+        Self { conns, source }
     }
 }
 
@@ -27,13 +35,13 @@ impl HistorySource for PeripheralSource<'_> {
     fn claims(&self) -> Vec<Claim> {
         let mut out = Vec::new();
         for conn in self.conns {
-            push_conn(conn, &mut out);
+            push_conn(conn, self.source, &mut out);
         }
         out
     }
 }
 
-fn push_conn(conn: &DeviceConnection, out: &mut Vec<Claim>) {
+fn push_conn(conn: &DeviceConnection, source: SourceKind, out: &mut Vec<Claim>) {
     // Key by the instance serial so setupapi and the registry reader (which keys by the
     // bare instance name) agree on the same device: the explicit `device_serial` when
     // present, else the last `\`-separated component of the instance id.
@@ -44,10 +52,13 @@ fn push_conn(conn: &DeviceConnection, out: &mut Vec<Claim>) {
         let start = id.rfind('\\').map_or(0, |i| i + 1);
         id[start..].to_string()
     });
-    // peripheral-core 0.1 emits only setupapi-sourced connections. When usb-forensic
-    // bumps to the 0.2 registry reader, classify USBSTOR/SCSI/USB via source.key_path.
-    let source = SourceKind::SetupApi;
-    let locator = format!("{}:{}", conn.source.file, conn.source.line);
+    // Line-oriented sources (setupapi/syslog) locate by file:line; a registry
+    // connection carries the full key path instead (line is 0), so prefer it.
+    let locator = conn
+        .source
+        .key_path
+        .clone()
+        .unwrap_or_else(|| format!("{}:{}", conn.source.file, conn.source.line));
     let claim = |attribute, value: i64| Claim {
         device: device.clone(),
         attribute,

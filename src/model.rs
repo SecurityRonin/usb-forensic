@@ -11,7 +11,8 @@ use serde::Serialize;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[non_exhaustive]
 pub enum SourceKind {
-    /// `SYSTEM\...\Enum\USBSTOR` — USB mass-storage device class keys.
+    /// `SYSTEM\...\Enum\{USBSTOR,SCSI,USB}` — device instance keys and their
+    /// install / first-install / last-arrival / last-removal property `FILETIME`s.
     Usbstor,
     /// `SYSTEM\MountedDevices` — drive-letter ↔ device mapping.
     MountedDevices,
@@ -23,6 +24,8 @@ pub enum SourceKind {
     Lnk,
     /// A Windows Jump List (`*.automaticDestinations-ms` / `*.customDestinations-ms`).
     JumpList,
+    /// A Linux kernel log (`syslog` / `dmesg`) — USB enumeration events.
+    LinuxKernelLog,
 }
 
 /// The physical storage container an artifact lives in — the tamper surface.
@@ -43,6 +46,8 @@ pub enum ArtifactContainer {
     EventLog,
     /// A Shell Link file (`.lnk`) or jump list on the filesystem.
     LnkFile,
+    /// A Linux kernel log file (`syslog` / `dmesg`).
+    KernelLog,
 }
 
 impl SourceKind {
@@ -54,6 +59,7 @@ impl SourceKind {
             Self::SetupApi => ArtifactContainer::SetupApiLog,
             Self::PartitionDiag => ArtifactContainer::EventLog,
             Self::Lnk | Self::JumpList => ArtifactContainer::LnkFile,
+            Self::LinuxKernelLog => ArtifactContainer::KernelLog,
         }
     }
 
@@ -67,7 +73,7 @@ impl SourceKind {
     /// [`normalize_local_clocks`]: crate::normalize_local_clocks
     #[must_use]
     pub fn clock_is_local(self) -> bool {
-        matches!(self, Self::SetupApi)
+        matches!(self, Self::SetupApi | Self::LinuxKernelLog)
     }
 }
 

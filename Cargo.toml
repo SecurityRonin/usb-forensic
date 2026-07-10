@@ -32,9 +32,11 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 lnk-core = "0.4"
 forensicnomicon = "1.2"
-# Device-connection domain reader (setupapi now; registry USBSTOR/SCSI/USB once its
-# 0.2 registry module publishes — bump to "0.2" and classify by Provenance.key_path).
-peripheral-core = "0.1"
+# Device-connection domain reader: setupapi.dev.log, SYSTEM-hive Enum device keys,
+# and Linux kernel logs, each decoded to DeviceConnection records.
+peripheral-core = "0.2"
+# Opens a SYSTEM hive in memory so peripheral-core's registry reader can decode it.
+winreg-core = "0.2"
 # Fleet reader crates are wired in per-source, under TDD (see docs/roadmap.md):
 #   winreg-artifacts   USBSTOR / MountedDevices / MountPoints2 / WPDBUSENUM / VolumeInfoCache / Amcache
 #   peripheral-core    setupapi.dev.log device-install events

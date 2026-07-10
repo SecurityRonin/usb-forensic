@@ -14,14 +14,15 @@
 //!   with per-attribute [`Consistency`] + retained provenance; [`to_jsonl`] output.
 //! - **Findings:** [`audit`] → `forensicnomicon` findings (conflicts graded, MITRE
 //!   T1070.006 consistent-with; corroborations as reliable history).
-//! - **Sources:** [`PeripheralSource`] (`peripheral-core` — `setupapi.dev.log` now,
-//!   registry USBSTOR/SCSI/USB once `peripheral-core` 0.2 ships) and [`LnkSource`]
-//!   (`lnk-core` — the volume-serial file join).
-//! - **CLI:** the `usb4n6` binary runs the pipeline over setupapi + `.lnk` evidence.
+//! - **Sources:** [`PeripheralSource`] (`peripheral-core` — `setupapi.dev.log`,
+//!   SYSTEM-hive `Enum\{USBSTOR,SCSI,USB}` device keys, and Linux kernel logs) and
+//!   [`LnkSource`] (`lnk-core` — the volume-serial file join).
+//! - **CLI:** the `usb4n6` binary runs the pipeline over setupapi, a SYSTEM hive,
+//!   `.lnk`, jump-list, and Linux syslog evidence (type auto-detected).
 //!
 //! Correlation across the setupapi device serial and the LNK volume serial awaits the
-//! registry `MountedDevices` bridge (`peripheral-core` 0.2); event-log, macOS, and
-//! Linux sources follow. See `docs/roadmap.md` and `docs/feature-parity.md`.
+//! registry `MountedDevices` bridge; event-log and macOS sources follow. See
+//! `docs/roadmap.md` and `docs/feature-parity.md`.
 //!
 //! ## The wedge (why it is not a USB Detective clone)
 //!
