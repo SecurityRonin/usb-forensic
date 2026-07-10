@@ -64,6 +64,8 @@ pub enum Attribute {
     FirstConnected,
     /// Most recent time the device was connected.
     LastConnected,
+    /// Most recent time the device was removed (disconnected).
+    LastRemoved,
     /// Volume label (friendly name) of the device's volume.
     VolumeName,
     /// Volume serial number of the device's volume.

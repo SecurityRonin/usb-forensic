@@ -2,3 +2,4 @@
 //! output into the source-agnostic `Claim` model.
 
 pub mod lnk;
+pub mod peripheral;

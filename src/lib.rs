@@ -46,6 +46,7 @@ pub use model::{ArtifactContainer, Attribute, Claim, DeviceKey, Provenance, Sour
 pub use report::audit;
 pub use source::{correlate_sources, HistorySource};
 pub use sources::lnk::{LnkArtifact, LnkSource};
+pub use sources::peripheral::PeripheralSource;
 
 use serde::Serialize;
 

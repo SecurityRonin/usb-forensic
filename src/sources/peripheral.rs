@@ -1,0 +1,137 @@
+//! Adapter: `peripheral-core` [`DeviceConnection`]s → USB-history [`Claim`]s.
+//!
+//! `peripheral-core` is the device-connection domain reader: today it decodes
+//! `setupapi.dev.log` (first-install times); with its 0.2 registry module it also
+//! decodes USBSTOR/SCSI/USB device instances (first/last connect + last removal). This
+//! adapter maps either into `Claim`s keyed by the device serial, so both flow into the
+//! same correlation engine. A pure mapping over already-decoded records.
+
+use crate::{Attribute, Claim, DeviceKey, HistorySource, Provenance, SourceKind, Value};
+use peripheral_core::DeviceConnection;
+
+/// A [`HistorySource`] over decoded [`DeviceConnection`]s.
+pub struct PeripheralSource<'a> {
+    conns: &'a [DeviceConnection],
+}
+
+impl<'a> PeripheralSource<'a> {
+    /// Wrap decoded device connections (from `peripheral_core::setupapi::parse_setupapi`
+    /// or its registry reader).
+    #[must_use]
+    pub fn new(conns: &'a [DeviceConnection]) -> Self {
+        Self { conns }
+    }
+}
+
+impl HistorySource for PeripheralSource<'_> {
+    fn claims(&self) -> Vec<Claim> {
+        let mut out = Vec::new();
+        for conn in self.conns {
+            push_conn(conn, &mut out);
+        }
+        out
+    }
+}
+
+fn push_conn(conn: &DeviceConnection, out: &mut Vec<Claim>) {
+    // Key by the instance serial so setupapi and the registry reader (which keys by the
+    // bare instance name) agree on the same device: the explicit `device_serial` when
+    // present, else the last `\`-separated component of the instance id.
+    let device = DeviceKey(if let Some(serial) = &conn.device_serial {
+        serial.clone()
+    } else {
+        let id = &conn.device_instance_id;
+        let start = id.rfind('\\').map_or(0, |i| i + 1);
+        id[start..].to_string()
+    });
+    // peripheral-core 0.1 emits only setupapi-sourced connections. When usb-forensic
+    // bumps to the 0.2 registry reader, classify USBSTOR/SCSI/USB via source.key_path.
+    let source = SourceKind::SetupApi;
+    let locator = format!("{}:{}", conn.source.file, conn.source.line);
+    let claim = |attribute, value: i64| Claim {
+        device: device.clone(),
+        attribute,
+        value: Value::Timestamp(value),
+        provenance: Provenance {
+            source,
+            locator: locator.clone(),
+        },
+    };
+    if let Some(s) = &conn.first_install {
+        out.push(claim(Attribute::FirstConnected, s.value));
+    }
+    if let Some(s) = &conn.last_arrival {
+        out.push(claim(Attribute::LastConnected, s.value));
+    }
+    if let Some(s) = &conn.last_removal {
+        out.push(claim(Attribute::LastRemoved, s.value));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use peripheral_core::setupapi::parse_setupapi;
+    use peripheral_core::Stamp;
+
+    const USBSTOR_HEADER: &str = "[Device Install (Hardware initiated) - \
+        USBSTOR\\Disk&Ven_Generic&Prod_Flash\\7&1c2c4f0a&0 2024/01/02 03:04:05.000]";
+
+    #[test]
+    fn setupapi_connection_yields_first_connected_claim() {
+        let conns = parse_setupapi(USBSTOR_HEADER, "setupapi.dev.log");
+        assert_eq!(conns.len(), 1);
+        let claims = PeripheralSource::new(&conns).claims();
+        let fc = claims
+            .iter()
+            .find(|c| c.attribute == Attribute::FirstConnected)
+            .expect("first-connected claim");
+        // keyed by the last instance-id component (the instance serial).
+        assert_eq!(fc.device, DeviceKey("7&1c2c4f0a&0".to_string()));
+        assert_eq!(fc.provenance.source, SourceKind::SetupApi);
+        assert!(matches!(fc.value, Value::Timestamp(_)));
+    }
+
+    #[test]
+    fn explicit_device_serial_is_used_as_the_key() {
+        let mut conn = parse_setupapi(USBSTOR_HEADER, "f").pop().expect("one conn");
+        conn.device_serial = Some("AA11BB22".to_string());
+        let conns = [conn];
+        let claims = PeripheralSource::new(&conns).claims();
+        assert_eq!(claims[0].device, DeviceKey("AA11BB22".to_string()));
+    }
+
+    #[test]
+    fn arrival_and_removal_stamps_yield_last_connected_and_removed() {
+        let mut conn = parse_setupapi(USBSTOR_HEADER, "f").pop().expect("one conn");
+        conn.last_arrival = Some(Stamp::inferred(1_700_000_500));
+        conn.last_removal = Some(Stamp::inferred(1_700_000_900));
+        let conns = [conn];
+        let claims = PeripheralSource::new(&conns).claims();
+        assert_eq!(
+            claims
+                .iter()
+                .find(|c| c.attribute == Attribute::LastConnected)
+                .map(|c| &c.value),
+            Some(&Value::Timestamp(1_700_000_500))
+        );
+        assert_eq!(
+            claims
+                .iter()
+                .find(|c| c.attribute == Attribute::LastRemoved)
+                .map(|c| &c.value),
+            Some(&Value::Timestamp(1_700_000_900))
+        );
+    }
+
+    #[test]
+    fn separatorless_instance_id_is_used_whole() {
+        // No `\` in the instance id → the whole string is the key (rfind → None branch).
+        let mut conn = parse_setupapi(USBSTOR_HEADER, "f").pop().expect("one conn");
+        conn.device_serial = None;
+        conn.device_instance_id = "BAREINSTANCE".to_string();
+        let conns = [conn];
+        let claims = PeripheralSource::new(&conns).claims();
+        assert_eq!(claims[0].device, DeviceKey("BAREINSTANCE".to_string()));
+    }
+}
