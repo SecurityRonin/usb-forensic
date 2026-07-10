@@ -50,10 +50,10 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 
 | Capability | Seen in | Status |
 |---|---|---|
-| Merge all sources into one per-device record | USB Detective | 🏗 |
+| Merge all sources into one per-device record | USB Detective | ✅ (`correlate` / `correlate_sources`) |
 | Cross-source timestamp comparison per attribute | USB Detective | ✅ core primitive (`Consistency`) |
 | Consistency grading (corroborated / conflicting / single-source) | USB Detective (colour-coded) | ✅ `Consistency` |
-| Per-value source provenance retained | USB Detective | 🏗 (`ProvenancedValue`) |
+| Per-value source provenance retained | USB Detective | ✅ (`ProvenancedValue`: source + locator) |
 | Reproducibility chain (raw bytes → decoding rule per value) | (none) | 📋 the wedge |
 | Deleted / removed-device recovery (Win10 cleanup) | USB Detective | 📋 |
 | Prior volume names/serials for formatted devices | USB Detective | 📋 |
@@ -78,14 +78,14 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 
 | Capability | Seen in | Status |
 |---|---|---|
-| Results grid / high-level report | USB Detective, USBFT, Historian, USBDeview | 📋 |
-| Verbose per-value report with provenance | USB Detective | 📋 |
-| Per-device timeline | USB Detective | 📋 |
+| Results grid / high-level report | USB Detective, USBFT, Historian, USBDeview | ✅ (`usb4n6 --table`) |
+| Verbose per-value report with provenance | USB Detective | ✅ (`usb4n6 --report`) |
+| Per-device timeline | USB Detective | ✅ (per-device JSONL / report block) |
 | Aggregate super-timeline | USB Detective | 📋 |
 | Opened/accessed-files report | USB Detective | 📋 |
-| Machine-readable output (JSONL, diffable, pipeable) | (weak in all — Excel/CSV only) | 🏗 the wedge |
-| `forensicnomicon::report` findings (fleet-uniform, MITRE-tagged) | (fleet-only) | 📋 |
-| Court-ready PDF/DOCX with per-timestamp source chain | (Excel only elsewhere) | 📋 |
+| Machine-readable output (JSONL, diffable, pipeable) | (weak in all — Excel/CSV only) | ✅ (`to_jsonl`, default) |
+| `forensicnomicon::report` findings (fleet-uniform, MITRE-tagged) | (fleet-only) | ✅ (`audit`) |
+| Court-ready report with per-value source chain | (Excel only elsewhere) | 🏗 Markdown (`--report`); native PDF/DOCX planned |
 | Volume / MBR export | USB Detective | 📋 |
 | Differential mode vs USB Detective / RegRipper (validation) | (none) | 📋 |
 
@@ -93,7 +93,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 
 | Property | Status |
 |---|---|
-| Single static binary, no runtime deps, `cargo install` | 📋 (CLI `usb4n6`) |
+| Single static binary, no runtime deps, `cargo install` | 🏗 (`usb4n6` builds & runs; `cargo install` at publish) |
 | Library-embeddable (used by Issen / other fleet crates) | ✅ (this crate) |
 | `#![forbid(unsafe_code)]`, panic-free (unwrap/expect denied) | ✅ |
 | 100% line coverage gate | ✅ |
