@@ -1,47 +1,70 @@
-//! `usb4n6` — run the USB-history correlation pipeline over an evidence source and emit
-//! a JSONL timeline plus graded findings.
+//! `usb4n6` — run the USB-history correlation pipeline over evidence sources and emit a
+//! JSONL timeline plus graded findings.
 //!
 //! Thin shell (Humble Object): every decision — parsing, correlation, grading,
-//! serialization — lives in the tested `usb_forensic` / `peripheral_core` libraries; this
-//! binary only reads input, wires the source, and writes output.
+//! serialization — lives in the tested `usb_forensic` / `peripheral_core` / `lnk_core`
+//! libraries; this binary only reads input, detects its type, wires the sources, and
+//! writes output.
 //!
 //! ```text
-//! usb4n6 <setupapi.dev.log>     # JSONL device histories on stdout, findings on stderr
+//! usb4n6 <file>...   # setupapi.dev.log and/or .lnk files (type auto-detected)
 //! usb4n6 --version
 //! ```
-//! Registry (USBSTOR/SCSI/USB), LNK, and event-log sources join here as they land.
+//! stdout: one JSON object per device history. stderr: a summary and graded findings.
+//! Registry (USBSTOR/SCSI/USB) and event-log sources join here as they land.
 
 use peripheral_core::setupapi::parse_setupapi;
 use std::process::ExitCode;
-use usb_forensic::{audit, correlate_sources, to_jsonl, PeripheralSource};
+use usb_forensic::{audit, correlate_sources, to_jsonl, LnkArtifact, LnkSource, PeripheralSource};
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().collect();
-    match args.get(1).map(String::as_str) {
-        Some("-V" | "--version") => {
-            println!("usb4n6 {}", env!("CARGO_PKG_VERSION"));
-            ExitCode::SUCCESS
-        }
-        Some(path) if !path.starts_with('-') => run(path),
-        _ => {
-            eprintln!("usage: usb4n6 <setupapi.dev.log>   (or --version)");
-            ExitCode::FAILURE
-        }
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.iter().any(|a| a == "-V" || a == "--version") {
+        println!("usb4n6 {}", env!("CARGO_PKG_VERSION"));
+        return ExitCode::SUCCESS;
     }
+    let paths: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
+    if paths.is_empty() {
+        eprintln!("usage: usb4n6 <file>...   (setupapi.dev.log and/or .lnk; or --version)");
+        return ExitCode::FAILURE;
+    }
+    run(&paths)
 }
 
-fn run(path: &str) -> ExitCode {
-    let text = match std::fs::read_to_string(path) {
-        Ok(text) => text,
-        Err(err) => {
-            eprintln!("usb4n6: cannot read {path}: {err}");
-            return ExitCode::FAILURE;
-        }
-    };
+/// A `.lnk` / jump-list Shell Link begins with `HeaderSize` = 0x4C little-endian.
+fn is_shell_link(bytes: &[u8]) -> bool {
+    bytes.get(..4) == Some(&[0x4C, 0x00, 0x00, 0x00])
+}
 
-    let connections = parse_setupapi(&text, path);
-    let source = PeripheralSource::new(&connections);
-    let histories = correlate_sources(&[&source]);
+fn run(paths: &[&String]) -> ExitCode {
+    let mut connections = Vec::new();
+    let mut lnk_artifacts = Vec::new();
+
+    for path in paths {
+        let bytes = match std::fs::read(path.as_str()) {
+            Ok(bytes) => bytes,
+            Err(err) => {
+                eprintln!("usb4n6: cannot read {path}: {err}");
+                return ExitCode::FAILURE;
+            }
+        };
+        if is_shell_link(&bytes) {
+            match lnk_core::parse_shell_link(&bytes) {
+                Some(link) => lnk_artifacts.push(LnkArtifact {
+                    source_path: (*path).clone(),
+                    link,
+                }),
+                None => eprintln!("usb4n6: {path}: not a valid Shell Link, skipping"),
+            }
+        } else {
+            let text = String::from_utf8_lossy(&bytes);
+            connections.extend(parse_setupapi(&text, path));
+        }
+    }
+
+    let peripheral = PeripheralSource::new(&connections);
+    let lnk = LnkSource::new(&lnk_artifacts);
+    let histories = correlate_sources(&[&peripheral, &lnk]);
 
     match to_jsonl(&histories) {
         Ok(jsonl) => print!("{jsonl}"),
@@ -53,8 +76,9 @@ fn run(path: &str) -> ExitCode {
 
     let findings = audit(&histories);
     eprintln!(
-        "usb4n6: {} device(s), {} finding(s)",
+        "usb4n6: {} device(s) from {} source record(s), {} finding(s)",
         histories.len(),
+        connections.len() + lnk_artifacts.len(),
         findings.len()
     );
     for finding in &findings {
