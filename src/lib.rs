@@ -35,6 +35,7 @@
 pub mod correlate;
 pub mod docx;
 pub mod model;
+pub mod pdf;
 pub mod render;
 pub mod report;
 pub mod source;
@@ -44,6 +45,7 @@ pub mod tz;
 pub use correlate::{correlate, to_jsonl, CorrelatedAttribute, DeviceHistory, ProvenancedValue};
 pub use docx::render_docx;
 pub use model::{ArtifactContainer, Attribute, Claim, DeviceKey, Provenance, SourceKind, Value};
+pub use pdf::render_pdf;
 pub use render::{format_epoch, render_report, render_table};
 pub use report::audit;
 pub use source::{correlate_sources, HistorySource};

@@ -28,7 +28,9 @@ fn main() -> ExitCode {
         println!("usb4n6 {}", env!("CARGO_PKG_VERSION"));
         return ExitCode::SUCCESS;
     }
-    let mode = if args.iter().any(|a| a == "--docx") {
+    let mode = if args.iter().any(|a| a == "--pdf") {
+        Output::Pdf
+    } else if args.iter().any(|a| a == "--docx") {
         Output::Docx
     } else if args.iter().any(|a| a == "--report") {
         Output::Report
@@ -45,7 +47,7 @@ fn main() -> ExitCode {
     let paths: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
     if paths.is_empty() {
         eprintln!(
-            "usage: usb4n6 [--table|--report|--docx] [--tz-offset=<secs>] <file>...  \
+            "usage: usb4n6 [--table|--report|--docx|--pdf] [--tz-offset=<secs>] <file>...  \
              (setupapi.dev.log/.lnk/jumplist; -V)"
         );
         return ExitCode::FAILURE;
@@ -64,6 +66,8 @@ enum Output {
     Report,
     /// The forensic report as a native Word `.docx` (binary; redirect to a file).
     Docx,
+    /// The forensic report as a native `.pdf` (binary; redirect to a file).
+    Pdf,
 }
 
 /// A `.lnk` Shell Link begins with `HeaderSize` = 0x4C little-endian.
@@ -74,6 +78,18 @@ fn is_shell_link(bytes: &[u8]) -> bool {
 /// An `*.automaticDestinations-ms` jump list is an OLE/CFB compound file.
 fn is_compound_file(bytes: &[u8]) -> bool {
     bytes.get(..8) == Some(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1])
+}
+
+/// Write a binary artifact to stdout; returns `false` (and reports) on I/O error.
+fn write_binary(bytes: &[u8], label: &str) -> bool {
+    use std::io::Write as _;
+    match std::io::stdout().write_all(bytes) {
+        Ok(()) => true,
+        Err(err) => {
+            eprintln!("usb4n6: cannot write {label}: {err}");
+            false
+        }
+    }
 }
 
 fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>) -> ExitCode {
@@ -138,10 +154,13 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>) -> ExitCode {
         Output::Table => usb_forensic::render_table(&histories),
         Output::Report => usb_forensic::render_report(&histories, &findings),
         Output::Docx => {
-            use std::io::Write as _;
-            let docx = usb_forensic::render_docx(&histories, &findings);
-            if let Err(err) = std::io::stdout().write_all(&docx) {
-                eprintln!("usb4n6: cannot write docx: {err}");
+            if !write_binary(&usb_forensic::render_docx(&histories, &findings), "docx") {
+                return ExitCode::FAILURE;
+            }
+            String::new()
+        }
+        Output::Pdf => {
+            if !write_binary(&usb_forensic::render_pdf(&histories, &findings), "pdf") {
                 return ExitCode::FAILURE;
             }
             String::new()

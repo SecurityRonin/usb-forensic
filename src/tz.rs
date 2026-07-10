@@ -1,6 +1,6 @@
 //! Timezone normalization — correct host-local timestamps to UTC.
 //!
-//! Some sources ([`SourceKind::clock_is_local`]) record local wall-clock with no zone,
+//! Some sources (`SourceKind::clock_is_local`) record local wall-clock with no zone,
 //! so their readers store it naively (local-as-UTC epoch). Given the host's UTC offset,
 //! this shifts those timestamps to true UTC, so a local `setupapi`/Linux time and a UTC
 //! registry/LNK time for the same event line up instead of appearing to conflict.
