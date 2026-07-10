@@ -85,7 +85,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 | Opened/accessed-files report | USB Detective | 📋 |
 | Machine-readable output (JSONL, diffable, pipeable) | (weak in all — Excel/CSV only) | ✅ (`to_jsonl`, default) |
 | `forensicnomicon::report` findings (fleet-uniform, MITRE-tagged) | (fleet-only) | ✅ (`audit`) |
-| Court-ready report with per-value source chain | (Excel only elsewhere) | 🏗 Markdown (`--report`); native PDF/DOCX planned |
+| Court-ready report with per-value source chain | (Excel only elsewhere) | ✅ native DOCX (`--docx`, oracle-validated) + Markdown (`--report`); PDF via pandoc |
 | Volume / MBR export | USB Detective | 📋 |
 | Differential mode vs USB Detective / RegRipper (validation) | (none) | 📋 |
 
