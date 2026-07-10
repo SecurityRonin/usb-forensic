@@ -25,8 +25,50 @@ pub const CODE_HISTORY: &str = "USB-DEVICE-HISTORY";
 ///   timeline / JSONL); it is uncorroborated, not noteworthy.
 #[must_use]
 pub fn audit(histories: &[DeviceHistory]) -> Vec<Finding> {
-    let _ = histories;
-    unimplemented!("GREEN step")
+    let mut out = Vec::new();
+    for h in histories {
+        let device = &h.device.0;
+        for a in &h.attributes {
+            match a.consistency {
+                Consistency::Conflicting => {
+                    let mut builder =
+                        Finding::observation(Severity::Medium, Category::Integrity, CODE_CONFLICT)
+                            .note(format!(
+                                "device {device}: independent sources disagree on {:?} — \
+                         consistent with timestamp tampering or partial evidence",
+                                a.attribute
+                            ))
+                            .mitre("T1070.006");
+                    for v in &a.values {
+                        builder = builder.evidence(
+                            format!("{:?}", v.provenance.source),
+                            format!("{:?}", v.value),
+                        );
+                    }
+                    out.push(builder.build());
+                }
+                Consistency::Corroborated => {
+                    let containers = a
+                        .values
+                        .iter()
+                        .map(|v| v.provenance.source.container())
+                        .collect::<BTreeSet<_>>()
+                        .len();
+                    out.push(
+                        Finding::observation(Severity::Info, Category::History, CODE_HISTORY)
+                            .note(format!(
+                                "device {device}: {:?} corroborated across {containers} \
+                                 independent containers",
+                                a.attribute
+                            ))
+                            .build(),
+                    );
+                }
+                Consistency::SingleSource => {}
+            }
+        }
+    }
+    out
 }
 
 #[cfg(test)]
