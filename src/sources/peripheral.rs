@@ -134,6 +134,26 @@ mod tests {
     }
 
     #[test]
+    fn drive_letter_yields_a_drive_letter_claim() {
+        // peripheral-core 0.3's MountedDevices join sets `drive_letter`; the adapter
+        // surfaces it as a `DriveLetter` claim keyed by the same device, so the
+        // correlated record shows the mount (e.g. `E:`).
+        let mut conn = parse_setupapi(USBSTOR_HEADER, "SYSTEM")
+            .pop()
+            .expect("one conn");
+        conn.drive_letter = Some('E');
+        let conns = [conn];
+        let claims = PeripheralSource::new(&conns, SourceKind::Usbstor).claims();
+        let dl = claims
+            .iter()
+            .find(|c| c.attribute == Attribute::DriveLetter)
+            .expect("drive-letter claim");
+        assert_eq!(dl.value, Value::Text("E:".to_string()));
+        assert_eq!(dl.device, DeviceKey("7&1c2c4f0a&0".to_string()));
+        assert_eq!(dl.provenance.source, SourceKind::Usbstor);
+    }
+
+    #[test]
     fn explicit_device_serial_is_used_as_the_key() {
         let mut conn = parse_setupapi(USBSTOR_HEADER, "f").pop().expect("one conn");
         conn.device_serial = Some("AA11BB22".to_string());
