@@ -91,39 +91,53 @@ fn target_path(link: &lnk_core::ShellLink) -> Option<String> {
         .filter(|p| !p.is_empty())
 }
 
-/// Emit the volume-serial-join claims for one artifact.
-///
-/// A link contributes device-join material only when it carries a `VolumeID` with a
-/// non-zero drive serial (serial `0` is the "unset" sentinel — there is no volume to
-/// key on, so the link is skipped rather than emitting a bogus `0000-0000` device).
 fn push_artifact_claims(artifact: &LnkArtifact, out: &mut Vec<Claim>) {
-    let Some(info) = artifact.link.link_info.as_ref() else {
-        return;
+    out.extend(shell_link_claims(
+        &artifact.link,
+        SourceKind::Lnk,
+        &artifact.source_path,
+    ));
+}
+
+/// The canonical volume serial (`DEAD-BEEF`) of a Shell Link's `VolumeID`, or `None`
+/// when the link has no volume id or the serial is the `0` unset sentinel.
+pub(crate) fn link_volume_serial(link: &lnk_core::ShellLink) -> Option<String> {
+    let serial = link
+        .link_info
+        .as_ref()?
+        .volume_id
+        .as_ref()?
+        .drive_serial_number;
+    (serial != 0).then(|| format_volume_serial(serial))
+}
+
+/// Map one decoded Shell Link into its volume-serial-join claims, tagged with the given
+/// source and locator. Shared by the LNK and jump-list adapters (a jump-list entry
+/// embeds a Shell Link). A link contributes only when it carries a `VolumeID` with a
+/// non-zero drive serial (serial `0` is the "unset" sentinel — no volume to key on, so
+/// it is skipped rather than emitting a bogus `0000-0000` device).
+pub(crate) fn shell_link_claims(
+    link: &lnk_core::ShellLink,
+    source: SourceKind,
+    locator: &str,
+) -> Vec<Claim> {
+    let mut out = Vec::new();
+    let Some(serial_str) = link_volume_serial(link) else {
+        return out;
     };
-    let Some(volume) = info.volume_id.as_ref() else {
-        return;
-    };
-    let serial = volume.drive_serial_number;
-    if serial == 0 {
-        return;
-    }
-    let serial_str = format_volume_serial(serial);
     let device = DeviceKey(serial_str.clone());
     let provenance = Provenance {
-        source: SourceKind::Lnk,
-        locator: artifact.source_path.clone(),
+        source,
+        locator: locator.to_string(),
     };
 
-    // The join key, surfaced as a matchable value.
     out.push(Claim {
         device: device.clone(),
         attribute: Attribute::VolumeSerial,
         value: Value::Text(serial_str),
         provenance: provenance.clone(),
     });
-
-    // The file that was accessed from that volume, when a target resolves.
-    if let Some(path) = target_path(&artifact.link) {
+    if let Some(path) = target_path(link) {
         out.push(Claim {
             device,
             attribute: Attribute::AccessedFile,
@@ -131,6 +145,7 @@ fn push_artifact_claims(artifact: &LnkArtifact, out: &mut Vec<Claim>) {
             provenance,
         });
     }
+    out
 }
 
 #[cfg(test)]

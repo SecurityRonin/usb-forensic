@@ -19,8 +19,10 @@ pub enum SourceKind {
     SetupApi,
     /// Microsoft-Windows-Partition/Diagnostic event log — volume serials.
     PartitionDiag,
-    /// A Windows Shell Link (`.lnk`) / jump list — the volume-serial file join.
+    /// A Windows Shell Link (`.lnk`) — the volume-serial file join.
     Lnk,
+    /// A Windows Jump List (`*.automaticDestinations-ms` / `*.customDestinations-ms`).
+    JumpList,
 }
 
 /// The physical storage container an artifact lives in — the tamper surface.
@@ -51,7 +53,7 @@ impl SourceKind {
             Self::Usbstor | Self::MountedDevices => ArtifactContainer::SystemHive,
             Self::SetupApi => ArtifactContainer::SetupApiLog,
             Self::PartitionDiag => ArtifactContainer::EventLog,
-            Self::Lnk => ArtifactContainer::LnkFile,
+            Self::Lnk | Self::JumpList => ArtifactContainer::LnkFile,
         }
     }
 }
