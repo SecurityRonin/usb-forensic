@@ -1,7 +1,7 @@
 //! Native DOCX export — the court-ready report as an Office Open XML `.docx`, with **no
 //! dependency**: a `.docx` is a ZIP of a few XML parts, so this writes a minimal
 //! stored (uncompressed) ZIP by hand. The report text comes from
-//! [`render_report`](crate::render_report); each line becomes a Word paragraph.
+//! [`render_report`]; each line becomes a Word paragraph.
 //!
 //! The output is validated against an independent oracle (python-docx opens it and reads
 //! the paragraphs back) — see `docs/validation.md`.
