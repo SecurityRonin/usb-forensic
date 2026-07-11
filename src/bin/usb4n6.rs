@@ -9,7 +9,7 @@
 //! ```text
 //! usb4n6 [--table|--timeline|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] <file>...
 //!     # files: setupapi.dev.log, a SYSTEM hive, .lnk, *.automaticDestinations-ms,
-//!     #        or a Linux syslog/dmesg (type auto-detected by content)
+//!     #        a Partition/Diagnostic .evtx, or a Linux syslog/dmesg (auto-detected)
 //! usb4n6 --version
 //! ```
 //! stdout: JSONL (default), a results grid (`--table`), the aggregate super-timeline as
@@ -25,8 +25,9 @@ use peripheral_core::setupapi::parse_setupapi;
 use std::process::ExitCode;
 use usb_forensic::{
     audit, correlate_sources, to_jsonl, HistorySource, JumpListArtifact, JumpListSource,
-    LnkArtifact, LnkSource, PeripheralSource, SourceKind,
+    LnkArtifact, LnkSource, PartitionDiagSource, PeripheralSource, SourceKind,
 };
+use winevt_extract::{partition_diag, PartitionDiagEvent};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -62,7 +63,7 @@ fn main() -> ExitCode {
         eprintln!(
             "usage: usb4n6 [--table|--timeline|--report|--docx|--pdf] [--tz-offset=<secs>] \
              [--year=<YYYY>] <file>...  \
-             (setupapi.dev.log/SYSTEM hive/.lnk/jumplist/Linux syslog; -V)"
+             (setupapi.dev.log/SYSTEM hive/.lnk/jumplist/.evtx/Linux syslog; -V)"
         );
         return ExitCode::FAILURE;
     }
@@ -102,6 +103,11 @@ fn is_registry_hive(bytes: &[u8]) -> bool {
     bytes.get(..4) == Some(b"regf")
 }
 
+/// A Windows Event Log (`.evtx`) begins with the `ElfFile\0` file-header signature.
+fn is_evtx(bytes: &[u8]) -> bool {
+    bytes.get(..8) == Some(b"ElfFile\0")
+}
+
 /// A Linux kernel log carries the `New USB device found` enumeration marker that the
 /// syslog reader keys on; setupapi text does not.
 fn looks_like_linux_syslog(text: &str) -> bool {
@@ -130,6 +136,7 @@ struct Ingested {
     linux: Vec<peripheral_core::DeviceConnection>,
     lnk: Vec<LnkArtifact>,
     jumplists: Vec<JumpListArtifact>,
+    partition_diag: Vec<PartitionDiagEvent>,
 }
 
 impl Ingested {
@@ -140,6 +147,7 @@ impl Ingested {
             + self.linux.len()
             + self.lnk.len()
             + self.jumplists.len()
+            + self.partition_diag.len()
     }
 }
 
@@ -177,6 +185,12 @@ fn ingest(paths: &[&String], year: Option<i64>) -> Option<Ingested> {
                 Ok(hive) => g.registry.extend(parse_registry(&hive, path)),
                 Err(err) => eprintln!("usb4n6: {path}: not a valid registry hive: {err}"),
             }
+        } else if is_evtx(&bytes) {
+            // The evtx reader parses the file by path (not the bytes we sniffed).
+            match partition_diag(std::path::Path::new(path.as_str())) {
+                Ok(events) => g.partition_diag.extend(events),
+                Err(err) => eprintln!("usb4n6: {path}: cannot parse event log: {err}"),
+            }
         } else {
             let text = String::from_utf8_lossy(&bytes);
             if looks_like_linux_syslog(&text) {
@@ -206,7 +220,9 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
     let linux = PeripheralSource::new(&g.linux, SourceKind::LinuxKernelLog);
     let lnk = LnkSource::new(&g.lnk);
     let jumplist = JumpListSource::new(&g.jumplists);
-    let sources: [&dyn HistorySource; 5] = [&setupapi, &registry, &linux, &lnk, &jumplist];
+    let partdiag = PartitionDiagSource::new(&g.partition_diag);
+    let sources: [&dyn HistorySource; 6] =
+        [&setupapi, &registry, &linux, &lnk, &jumplist, &partdiag];
 
     let histories = if let Some(offset) = tz_offset {
         // Normalize local-clock timestamps to UTC before correlating.

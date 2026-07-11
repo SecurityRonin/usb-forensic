@@ -41,7 +41,7 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | `Amcache.hve` | execution / first-seen corroboration | USB Detective | 📋 |
 | SetupAPI (`setupapi.dev.log`) | first-install time (local, TZ-normalized) | all dedicated | ✅ (`PeripheralSource`) |
 | Linux kernel log (`syslog`/`dmesg`) | USB enumeration (VID/PID, serial, first-seen) | USBFT (parses) | ✅ (`PeripheralSource` via `peripheral-core` `linux_syslog`; UAC-syslog validated) |
-| Partition/Diagnostic event log | volume serial numbers, connect events | USB Detective | 📋 |
+| Partition/Diagnostic event log | volume serial numbers, connect events | USB Detective | ✅ (`PartitionDiagSource` via `winevt-extract` 0.3 EID-1006 extractor; disk-arrival connect events, Tier-1 on the real DFIRArtifactMuseum `.evtx`. Volume-serial VBR decode: follow-up) |
 | Other USB event-log providers (Kernel-PnP, DriverFrameworks-UserMode, Ntfs) | connect/disconnect, mount | RegRipper/KAPE workflows | 📋 |
 | LNK files | files opened on device (volume-serial join) | USB Detective, USBFT | ✅ (`LnkSource`) |
 | Jump Lists | recent items per app on device | USB Detective | ✅ (`JumpListSource`, MRU access times) |

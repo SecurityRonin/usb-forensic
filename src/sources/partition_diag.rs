@@ -48,7 +48,26 @@ fn device_key(event: &PartitionDiagEvent) -> Option<DeviceKey> {
 }
 
 fn push_event(event: &PartitionDiagEvent, out: &mut Vec<Claim>) {
-    let _ = (event, out);
+    let Some(device) = device_key(event) else {
+        return;
+    };
+    // The provider timestamp is ISO-8601 UTC; a malformed one is dropped, never
+    // turned into a bogus epoch (a wrong time is worse than a missing one).
+    let Ok(when) = event.timestamp.parse::<jiff::Timestamp>() else {
+        return;
+    };
+    out.push(Claim {
+        device,
+        attribute: Attribute::LastConnected,
+        value: Value::Timestamp(when.as_second()),
+        provenance: Provenance {
+            source: SourceKind::PartitionDiag,
+            locator: format!(
+                "Microsoft-Windows-Partition/Diagnostic#1006 DiskId={}",
+                event.disk_id.as_deref().unwrap_or("?")
+            ),
+        },
+    });
 }
 
 #[cfg(test)]
