@@ -21,7 +21,10 @@ pub trait HistorySource {
 #[must_use]
 pub fn correlate_sources(sources: &[&dyn HistorySource]) -> Vec<DeviceHistory> {
     let all: Vec<Claim> = sources.iter().flat_map(|s| s.claims()).collect();
-    crate::correlate(&all)
+    // Attribute volume-keyed file access (LNK) to the device carrying that volume before
+    // grouping, so a device and the files touched on it land in one history.
+    let reconciled = crate::reconcile_volume_serials(&all);
+    crate::correlate(&reconciled)
 }
 
 #[cfg(test)]

@@ -21,7 +21,37 @@ use std::collections::{BTreeMap, BTreeSet};
 /// unmatched claims unchanged.
 #[must_use]
 pub fn reconcile_volume_serials(claims: &[Claim]) -> Vec<Claim> {
-    claims.to_vec()
+    // Map each volume serial to the physical device(s) that reported carrying it. A claim
+    // is a *physical* assertion when its device key differs from the serial value; an LNK
+    // pseudo-device's own serial (key == value) is not an assertion of ownership.
+    let mut carriers: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for claim in claims {
+        if claim.attribute == Attribute::VolumeSerial {
+            if let Value::Text(serial) = &claim.value {
+                if claim.device.0 != *serial {
+                    carriers
+                        .entry(serial.clone())
+                        .or_default()
+                        .insert(claim.device.0.clone());
+                }
+            }
+        }
+    }
+
+    claims
+        .iter()
+        .map(|claim| {
+            let mut out = claim.clone();
+            // Re-key only when the device key is a volume serial carried by exactly one
+            // physical device — never guess an ambiguous attribution.
+            if let Some(devices) = carriers.get(&claim.device.0) {
+                if let (1, Some(device)) = (devices.len(), devices.iter().next()) {
+                    out.device = DeviceKey(device.clone());
+                }
+            }
+            out
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -53,7 +83,7 @@ mod tests {
         }
     }
 
-    fn device_of<'a>(out: &'a [Claim], attr: Attribute, src: SourceKind) -> &'a DeviceKey {
+    fn device_of(out: &[Claim], attr: Attribute, src: SourceKind) -> &DeviceKey {
         &out.iter()
             .find(|c| c.attribute == attr && c.provenance.source == src)
             .expect("claim present")

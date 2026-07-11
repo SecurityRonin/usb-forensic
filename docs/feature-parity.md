@@ -60,7 +60,7 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | Prior volume names/serials for formatted devices | USB Detective | 📋 |
 | Device/volume encryption-type detection | USB Detective | 📋 |
 | TrueCrypt/VeraCrypt mounted-volume history | USBFT | 📋 |
-| File-to-device linking (which files touched which stick) | USB Detective, USBFT | 📋 |
+| File-to-device linking (which files touched which stick) | USB Detective, USBFT | ✅ (`reconcile_volume_serials` — LNK volume-keyed file access re-attributed to the device carrying that volume serial; ambiguous/unmatched left untouched. Rule-tested; end-to-end join needs a FAT-volume + LNK corpus) |
 | Timezone normalization (local ↔ UTC) | USB Detective | ✅ (`--tz-offset`; `clock_is_local` per source) |
 | OS-version-aware artifact semantics | USB Detective | 📋 |
 

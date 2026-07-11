@@ -225,9 +225,11 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
         [&setupapi, &registry, &linux, &lnk, &jumplist, &partdiag];
 
     let histories = if let Some(offset) = tz_offset {
-        // Normalize local-clock timestamps to UTC before correlating.
+        // Normalize local-clock timestamps to UTC, then attribute volume-keyed file
+        // access to the carrying device, before correlating.
         let mut claims: Vec<_> = sources.iter().flat_map(|s| s.claims()).collect();
         usb_forensic::normalize_local_clocks(&mut claims, offset);
+        let claims = usb_forensic::reconcile_volume_serials(&claims);
         usb_forensic::correlate(&claims)
     } else {
         correlate_sources(&sources)
