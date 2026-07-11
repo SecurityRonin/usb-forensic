@@ -39,7 +39,7 @@ peripheral-core = "0.3"
 # Opens a SYSTEM hive in memory so peripheral-core's registry reader can decode it.
 winreg-core = "0.2"
 # Partition/Diagnostic event-log (EID 1006) disk-arrival extractor → PartitionDiagEvent.
-winevt-extract = "0.3"
+winevt-extract = "0.4"
 # Parse the event-log ISO-8601 TimeCreated into epoch seconds.
 jiff = "0.2"
 # Fleet reader crates are wired in per-source, under TDD (see docs/roadmap.md):

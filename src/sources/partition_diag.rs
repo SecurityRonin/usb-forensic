@@ -86,12 +86,52 @@ mod tests {
             capacity: Some(1_000_000_000),
             parent_id: Some("USB\\VID_0951&PID_1666\\SN123".to_string()),
             vbr0_hex: None,
+            fat_volume_serial: None,
+            ntfs_volume_serial: None,
         }
     }
 
     fn claims_for(e: PartitionDiagEvent) -> Vec<Claim> {
         let evs = [e];
         PartitionDiagSource::new(&evs).claims()
+    }
+
+    fn volume_serial_claim(claims: &[Claim]) -> Option<&Value> {
+        claims
+            .iter()
+            .find(|c| c.attribute == Attribute::VolumeSerial)
+            .map(|c| &c.value)
+    }
+
+    #[test]
+    fn fat_volume_serial_is_rendered_as_the_lnk_join_key() {
+        // A FAT 4-byte serial is formatted exactly as a Shell Link records it, so it can
+        // reconcile with LNK file-access on the same volume.
+        let mut e = event(Some("SN1"), None, "2020-01-01T00:00:00Z");
+        e.fat_volume_serial = Some(0xDEAD_BEEF);
+        let claims = claims_for(e);
+        assert_eq!(
+            volume_serial_claim(&claims),
+            Some(&Value::Text("DEAD-BEEF".to_string()))
+        );
+    }
+
+    #[test]
+    fn ntfs_volume_serial_is_rendered_as_a_distinct_8_byte_form() {
+        // The NTFS 8-byte serial must not collide with a 4-byte LNK serial → distinct form.
+        let mut e = event(Some("SN2"), None, "2020-01-01T00:00:00Z");
+        e.ntfs_volume_serial = Some(0x36B0_8F15_B08E_DAAF);
+        let claims = claims_for(e);
+        assert_eq!(
+            volume_serial_claim(&claims),
+            Some(&Value::Text("36B08F15-B08EDAAF".to_string()))
+        );
+    }
+
+    #[test]
+    fn no_volume_serial_emits_no_volume_serial_claim() {
+        let claims = claims_for(event(Some("SN3"), None, "2020-01-01T00:00:00Z"));
+        assert_eq!(volume_serial_claim(&claims), None);
     }
 
     #[test]
