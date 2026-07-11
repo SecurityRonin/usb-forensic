@@ -20,7 +20,7 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | Live system processing | USB Detective, USBFT, USBDeview | 📋 |
 | Individual files / folders of extracted artifacts | all | 🏗 (core accepts decoded records) |
 | Logical drives | USB Detective, USBFT | 📋 |
-| Mounted forensic images (E01/raw/…) | USB Detective (Pro), USBFT | 📋 (via fleet `ewf`/`dd` + filesystem readers) |
+| Mounted forensic images (E01/raw/…) | USB Detective (Pro), USBFT | 🏗 (raw disk-image boot sectors — MBR disk signature + FAT volume serial — read directly by `usb4n6`; E01 via `ewfexport` to raw. Tier-1: CFReDS RM#2 stick → its host label) |
 | Built-in image mounting (no external mounter) | USBFT (Arsenal Image Mounter) | 📋 (fleet `4n6mount` FUSE bridge) |
 | Volume Shadow Copies — auto-aggregated | USB Detective, USBFT | 📋 (fleet `[H]` VSS layer) |
 | Registry transaction-log replay (uncommitted data) | USB Detective | 📋 |
@@ -61,6 +61,7 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | Prior volume names/serials for formatted devices | USB Detective | 📋 |
 | Device/volume encryption-type detection | USB Detective | 📋 |
 | TrueCrypt/VeraCrypt mounted-volume history | USBFT | 📋 |
+| Physical-device→host attribution (image the stick, tie it to its host footprint) | USB Detective, USBFT | ✅ (`DeviceImageSource`: a raw device image's MBR disk signature + FAT volume serial reconcile onto its host label/drive via the volume-serial join. Tier-1 on the real CFReDS RM#2 stick: disk sig 0xE221034C = drive E:, FAT serial = EMDMgmt 'IAMAN \$_@' — Corroborated cross-container) |
 | File-to-device linking (which files touched which stick) | USB Detective, USBFT | ✅ (`reconcile_volume_serials` — LNK volume-keyed file access re-attributed to the device carrying that volume serial; ambiguous/unmatched left untouched. Rule-tested; end-to-end join needs a FAT-volume + LNK corpus) |
 | Timezone normalization (local ↔ UTC) | USB Detective | ✅ (`--tz-offset`; `clock_is_local` per source) |
 | OS-version-aware artifact semantics | USB Detective | 📋 |

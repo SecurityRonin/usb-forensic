@@ -32,6 +32,8 @@ pub enum SourceKind {
     MountPoints2,
     /// `SOFTWARE\...\EMDMgmt` — the `ReadyBoost` cache: volume label + serial history.
     EmdMgmt,
+    /// A raw disk image of a physical device — its MBR/VBR boot sectors.
+    DeviceImage,
 }
 
 /// The physical storage container an artifact lives in — the tamper surface.
@@ -59,6 +61,8 @@ pub enum ArtifactContainer {
     SoftwareHive,
     /// A per-user `NTUSER.DAT` hive (MountPoints2, …) — a distinct per-user tamper surface.
     UserHive,
+    /// The physical device's own media (MBR/VBR boot sectors) — the strongest surface.
+    DeviceMedia,
 }
 
 impl SourceKind {
@@ -73,6 +77,7 @@ impl SourceKind {
             Self::LinuxKernelLog => ArtifactContainer::KernelLog,
             Self::VolumeInfoCache | Self::EmdMgmt => ArtifactContainer::SoftwareHive,
             Self::MountPoints2 => ArtifactContainer::UserHive,
+            Self::DeviceImage => ArtifactContainer::DeviceMedia,
         }
     }
 
@@ -199,6 +204,15 @@ mod tests {
         assert_eq!(
             SourceKind::EmdMgmt.container(),
             ArtifactContainer::SoftwareHive
+        );
+    }
+
+    #[test]
+    fn device_image_is_its_own_device_media_container() {
+        // The physical device's own boot sectors — the strongest, distinct tamper surface.
+        assert_eq!(
+            SourceKind::DeviceImage.container(),
+            ArtifactContainer::DeviceMedia
         );
     }
 }

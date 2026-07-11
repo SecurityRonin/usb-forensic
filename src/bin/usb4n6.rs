@@ -9,7 +9,7 @@
 //! ```text
 //! usb4n6 [--table|--timeline|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] <file>...
 //!     # files: setupapi.dev.log, a SYSTEM hive, .lnk, *.automaticDestinations-ms,
-//!     #        a Partition/Diagnostic .evtx, or a Linux syslog/dmesg (auto-detected)
+//!     #        a Partition/Diagnostic .evtx, a raw USB device image, or a Linux syslog/dmesg (auto-detected)
 //! usb4n6 --version
 //! ```
 //! stdout: JSONL (default), a results grid (`--table`), the aggregate super-timeline as
@@ -28,9 +28,9 @@ use peripheral_core::setupapi::parse_setupapi;
 use peripheral_core::volume_info::{parse_volume_info_cache, VolumeLabel};
 use std::process::ExitCode;
 use usb_forensic::{
-    audit, to_jsonl, EmdMgmtSource, HistorySource, JumpListArtifact, JumpListSource, LnkArtifact,
-    LnkSource, MountPoints2Source, PartitionDiagSource, PeripheralSource, SourceKind,
-    VolumeCacheSource,
+    audit, parse_boot_sectors, to_jsonl, DeviceImage, DeviceImageSource, EmdMgmtSource,
+    HistorySource, JumpListArtifact, JumpListSource, LnkArtifact, LnkSource, MountPoints2Source,
+    PartitionDiagSource, PeripheralSource, SourceKind, VolumeCacheSource,
 };
 use winevt_extract::{partition_diag, PartitionDiagEvent};
 
@@ -113,6 +113,11 @@ fn is_evtx(bytes: &[u8]) -> bool {
     bytes.get(..8) == Some(b"ElfFile\0")
 }
 
+/// A raw disk image with an MBR ends its first sector with the `0x55AA` boot signature.
+fn is_disk_image(bytes: &[u8]) -> bool {
+    bytes.get(0x1FE..0x200) == Some(&[0x55, 0xAA])
+}
+
 /// A Linux kernel log carries the `New USB device found` enumeration marker that the
 /// syslog reader keys on; setupapi text does not.
 fn looks_like_linux_syslog(text: &str) -> bool {
@@ -144,6 +149,7 @@ struct Ingested {
     partition_diag: Vec<PartitionDiagEvent>,
     volume_labels: Vec<VolumeLabel>,
     emd_volumes: Vec<EmdVolume>,
+    device_images: Vec<(DeviceImage, String)>,
     mounted_volumes: Vec<MountedVolume>,
     user_mounts: Vec<UserMount>,
 }
@@ -160,6 +166,7 @@ impl Ingested {
             + self.volume_labels.len()
             + self.user_mounts.len()
             + self.emd_volumes.len()
+            + self.device_images.len()
     }
 }
 
@@ -205,6 +212,11 @@ fn ingest(paths: &[&String], year: Option<i64>) -> Option<Ingested> {
                     g.emd_volumes.extend(parse_emdmgmt(&hive, path));
                 }
                 Err(err) => eprintln!("usb4n6: {path}: not a valid registry hive: {err}"),
+            }
+        } else if is_disk_image(&bytes) {
+            match parse_boot_sectors(&bytes) {
+                Some(img) => g.device_images.push((img, (*path).clone())),
+                None => eprintln!("usb4n6: {path}: MBR present but unreadable, skipping"),
             }
         } else if is_evtx(&bytes) {
             // The evtx reader parses the file by path (not the bytes we sniffed).
@@ -261,6 +273,9 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
     // (1) volume-serial → device (file-to-device), and (2) the MountedDevices MBR bridge
     // unifying drive-letter and volume-GUID facts onto one canonical volume. Then correlate.
     let mut claims: Vec<_> = sources.iter().flat_map(|s| s.claims()).collect();
+    for (img, loc) in &g.device_images {
+        claims.extend(DeviceImageSource::new(img, loc.clone()).claims());
+    }
     if let Some(offset) = tz_offset {
         usb_forensic::normalize_local_clocks(&mut claims, offset);
     }
