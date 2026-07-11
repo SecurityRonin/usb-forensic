@@ -5,11 +5,20 @@ all-features = false
 [advisories]
 version = 2
 yanked = "deny"
+ignore = [
+    # `encoding` is unmaintained (not a vulnerability) — a deep transitive dependency of
+    # the `evtx` crate (via winevt-extract) used for legacy event-log codepage decoding.
+    # Not directly controllable here and no security impact; revisit if evtx moves to
+    # encoding_rs. https://rustsec.org/advisories/RUSTSEC-2021-0153
+    "RUSTSEC-2021-0153",
+]
 
 [licenses]
 version = 2
 # This crate is Apache-2.0; permit only permissive, non-copyleft licences in the tree.
-allow = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause", "Unicode-3.0", "ISC", "Zlib"]
+# CC0-1.0 (public-domain dedication) covers the `encoding-index-*` codepage tables pulled
+# transitively via winevt-extract → evtx → encoding for legacy event-log string decoding.
+allow = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause", "Unicode-3.0", "ISC", "Zlib", "CC0-1.0"]
 confidence-threshold = 0.9
 
 [bans]
