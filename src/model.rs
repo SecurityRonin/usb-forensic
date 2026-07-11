@@ -34,6 +34,8 @@ pub enum SourceKind {
     EmdMgmt,
     /// A raw disk image of a physical device — its MBR/VBR boot sectors.
     DeviceImage,
+    /// macOS `com.apple.iPod.plist` — Apple-device (iPhone/iPad/iPod) connection history.
+    AppleIPod,
 }
 
 /// The physical storage container an artifact lives in — the tamper surface.
@@ -63,6 +65,8 @@ pub enum ArtifactContainer {
     UserHive,
     /// The physical device's own media (MBR/VBR boot sectors) — the strongest surface.
     DeviceMedia,
+    /// A macOS preferences/property-list artifact (com.apple.iPod.plist, …).
+    MacosPlist,
 }
 
 impl SourceKind {
@@ -78,6 +82,7 @@ impl SourceKind {
             Self::VolumeInfoCache | Self::EmdMgmt => ArtifactContainer::SoftwareHive,
             Self::MountPoints2 => ArtifactContainer::UserHive,
             Self::DeviceImage => ArtifactContainer::DeviceMedia,
+            Self::AppleIPod => ArtifactContainer::MacosPlist,
         }
     }
 
@@ -207,6 +212,16 @@ mod tests {
             SourceKind::EmdMgmt.container(),
             ArtifactContainer::SoftwareHive
         );
+    }
+
+    #[test]
+    fn apple_ipod_is_a_macos_plist_container() {
+        // A macOS plist is a distinct tamper surface from any Windows/Linux artifact.
+        assert_eq!(
+            SourceKind::AppleIPod.container(),
+            ArtifactContainer::MacosPlist
+        );
+        assert!(!SourceKind::AppleIPod.clock_is_local());
     }
 
     #[test]

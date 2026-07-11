@@ -2,7 +2,7 @@
 name = "usb-forensic"
 version = "0.0.0"
 edition = "2021"
-rust-version = "1.81"
+rust-version = "1.96.0"
 license = "Apache-2.0"
 authors = ["Albert Hui <albert@securityronin.com>"]
 description = "USB device-history correlation engine — reconstructs USB connection history from every Windows artifact and scores cross-source timestamp consistency. Pipeline-native, reproducible, panic-free."
@@ -38,6 +38,9 @@ forensicnomicon = "1.2"
 peripheral-core = "0.7"
 # Opens a SYSTEM hive in memory so peripheral-core's registry reader can decode it.
 winreg-core = "0.2"
+# macOS Apple-device connection history (com.apple.iPod.plist); 1.10 ships the
+# quick-xml >= 0.41 fix for RUSTSEC-2026-0194/0195 (needs Rust 1.88, within our 1.96 pin).
+plist = "1.10"
 # Partition/Diagnostic event-log (EID 1006) disk-arrival extractor → PartitionDiagEvent.
 winevt-extract = "0.4"
 # Parse the event-log ISO-8601 TimeCreated into epoch seconds.

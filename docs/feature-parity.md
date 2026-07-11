@@ -74,7 +74,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 
 | Source | OS | Status |
 |---|---|---|
-| Unified logs (USBMSC), `/var/log/daily.out`, IORegistry snapshots, `com.apple.iPod.plist` | macOS | 📋 |
+| `com.apple.iPod.plist` (Apple-device connection history) | macOS | ✅ (`AppleIPodSource` via the `plist` crate; per-device serial, model, last-connected. Tier-1 on a real macOS `com.apple.iPod.plist`. Unified logs / IORegistry: follow-up) |
 | syslog/dmesg kernel USB blocks (journald/GVFS planned) | Linux | ✅ wired end-to-end (`peripheral-core` `linux_syslog`, `--year`); UAC-syslog validated |
 
 ## 5. Output & reporting

@@ -9,7 +9,7 @@
 //! ```text
 //! usb4n6 [--table|--timeline|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] <file>...
 //!     # files: setupapi.dev.log, a SYSTEM hive, .lnk, *.automaticDestinations-ms,
-//!     #        a Partition/Diagnostic .evtx, a raw USB device image, or a Linux syslog/dmesg (auto-detected)
+//!     #        a Partition/Diagnostic .evtx, a raw USB device image, a macOS com.apple.iPod.plist, or a Linux syslog/dmesg (auto-detected)
 //! usb4n6 --version
 //! ```
 //! stdout: JSONL (default), a results grid (`--table`), the aggregate super-timeline as
@@ -28,9 +28,10 @@ use peripheral_core::setupapi::parse_setupapi;
 use peripheral_core::volume_info::{parse_volume_info_cache, VolumeLabel};
 use std::process::ExitCode;
 use usb_forensic::{
-    audit, parse_boot_sectors, to_jsonl, DeviceImage, DeviceImageSource, EmdMgmtSource,
-    HistorySource, JumpListArtifact, JumpListSource, LnkArtifact, LnkSource, MountPoints2Source,
-    PartitionDiagSource, PeripheralSource, SourceKind, VolumeCacheSource,
+    audit, parse_boot_sectors, parse_ipod_plist, to_jsonl, AppleDevice, AppleIPodSource,
+    DeviceImage, DeviceImageSource, EmdMgmtSource, HistorySource, JumpListArtifact, JumpListSource,
+    LnkArtifact, LnkSource, MountPoints2Source, PartitionDiagSource, PeripheralSource, SourceKind,
+    VolumeCacheSource,
 };
 use winevt_extract::{partition_diag, PartitionDiagEvent};
 
@@ -118,6 +119,12 @@ fn is_disk_image(bytes: &[u8]) -> bool {
     bytes.get(0x1FE..0x200) == Some(&[0x55, 0xAA])
 }
 
+/// A property list — a binary `bplist00` or an XML plist (the `com.apple.iPod.plist` form).
+fn is_plist(bytes: &[u8]) -> bool {
+    bytes.get(..8) == Some(b"bplist00")
+        || String::from_utf8_lossy(bytes.get(..512).unwrap_or(bytes)).contains("<plist")
+}
+
 /// A Linux kernel log carries the `New USB device found` enumeration marker that the
 /// syslog reader keys on; setupapi text does not.
 fn looks_like_linux_syslog(text: &str) -> bool {
@@ -150,6 +157,7 @@ struct Ingested {
     volume_labels: Vec<VolumeLabel>,
     emd_volumes: Vec<EmdVolume>,
     device_images: Vec<(DeviceImage, String)>,
+    apple_devices: Vec<(Vec<AppleDevice>, String)>,
     mounted_volumes: Vec<MountedVolume>,
     user_mounts: Vec<UserMount>,
 }
@@ -167,6 +175,11 @@ impl Ingested {
             + self.user_mounts.len()
             + self.emd_volumes.len()
             + self.device_images.len()
+            + self
+                .apple_devices
+                .iter()
+                .map(|(d, _)| d.len())
+                .sum::<usize>()
     }
 }
 
@@ -212,6 +225,13 @@ fn ingest(paths: &[&String], year: Option<i64>) -> Option<Ingested> {
                     g.emd_volumes.extend(parse_emdmgmt(&hive, path));
                 }
                 Err(err) => eprintln!("usb4n6: {path}: not a valid registry hive: {err}"),
+            }
+        } else if is_plist(&bytes) {
+            let devs = parse_ipod_plist(&bytes);
+            if devs.is_empty() {
+                eprintln!("usb4n6: {path}: plist has no Apple-device history, skipping");
+            } else {
+                g.apple_devices.push((devs, (*path).clone()));
             }
         } else if is_disk_image(&bytes) {
             match parse_boot_sectors(&bytes) {
@@ -275,6 +295,9 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
     let mut claims: Vec<_> = sources.iter().flat_map(|s| s.claims()).collect();
     for (img, loc) in &g.device_images {
         claims.extend(DeviceImageSource::new(img, loc.clone()).claims());
+    }
+    for (devs, loc) in &g.apple_devices {
+        claims.extend(AppleIPodSource::new(devs, loc.clone()).claims());
     }
     if let Some(offset) = tz_offset {
         usb_forensic::normalize_local_clocks(&mut claims, offset);
