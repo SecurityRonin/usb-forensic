@@ -53,7 +53,9 @@ pub use reconcile::{canonicalize_mounted_volumes, reconcile_volume_serials};
 pub use render::{format_epoch, render_report, render_table};
 pub use report::audit;
 pub use source::{correlate_sources, HistorySource};
-pub use sources::device_image::{parse_boot_sectors, DeviceImage, DeviceImageSource, EncryptionKind};
+pub use sources::device_image::{
+    parse_boot_sectors, DeviceImage, DeviceImageSource, EncryptionKind,
+};
 pub use sources::emdmgmt::EmdMgmtSource;
 pub use sources::jumplist::{JumpListArtifact, JumpListSource};
 pub use sources::lnk::{LnkArtifact, LnkSource};
