@@ -83,6 +83,13 @@ pub fn canonicalize_mounted_volumes(
             names.entry(key).or_default().push(guid.clone());
             canonical.insert(key, guid.clone());
         }
+        // The physical-device media identity: a device image keyed by its MBR disk
+        // signature joins this group too, so imaging the stick attributes it to the
+        // volume (and thus its label and per-user mount).
+        names
+            .entry(key)
+            .or_default()
+            .push(format!("disk-{:08X}", v.disk_signature));
     }
     // Build the identifier → canonical-key map (only for groups that have a volume GUID).
     let mut remap: BTreeMap<String, String> = BTreeMap::new();
@@ -167,6 +174,35 @@ mod tests {
         ];
         let out = canonicalize_mounted_volumes(&claims, &volumes);
         // Both now key on the canonical volume GUID → they correlate into one device.
+        assert!(out.iter().all(|c| c.device == DeviceKey("{vol}".into())));
+    }
+
+    #[test]
+    fn a_device_image_disk_signature_joins_the_bridged_volume() {
+        // A device image (keyed by its MBR disk signature) and the volume GUID that
+        // MountedDevices maps that disk signature to collapse onto one record — attributing
+        // the physical stick to its host volume/label.
+        let volumes = [mounted(None, Some("{vol}"), 0xE221_034C, 0x1000)];
+        let claims = vec![
+            // The device image's volume-serial fact, keyed by the disk-signature identity.
+            text_claim(
+                "disk-E221034C",
+                Attribute::VolumeSerial,
+                "B4D8-5399",
+                SourceKind::DeviceImage,
+            ),
+            // A per-user mount keyed by the same volume GUID.
+            Claim {
+                device: DeviceKey("{vol}".into()),
+                attribute: Attribute::LastConnected,
+                value: Value::Timestamp(1),
+                provenance: Provenance {
+                    source: SourceKind::MountPoints2,
+                    locator: "m".into(),
+                },
+            },
+        ];
+        let out = canonicalize_mounted_volumes(&claims, &volumes);
         assert!(out.iter().all(|c| c.device == DeviceKey("{vol}".into())));
     }
 
