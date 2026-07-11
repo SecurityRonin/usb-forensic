@@ -35,7 +35,7 @@ forensicnomicon = "1.2"
 # Device-connection domain reader: setupapi.dev.log, SYSTEM-hive Enum device keys
 # (+ MountedDevices drive-letter join), and Linux kernel logs, each decoded to
 # DeviceConnection records.
-peripheral-core = "0.4"
+peripheral-core = "0.6"
 # Opens a SYSTEM hive in memory so peripheral-core's registry reader can decode it.
 winreg-core = "0.2"
 # Partition/Diagnostic event-log (EID 1006) disk-arrival extractor → PartitionDiagEvent.

@@ -59,10 +59,130 @@ pub fn reconcile_volume_serials(claims: &[Claim]) -> Vec<Claim> {
         .collect()
 }
 
+/// Unify claims keyed by a drive letter or a volume GUID that name the **same volume**,
+/// using the `MountedDevices` MBR bridge: volumes sharing a `(disk_signature,
+/// partition_offset)` are one volume, so a drive-letter fact (a cached volume label) and a
+/// volume-GUID fact (a per-user mount) collapse onto one canonical device key — the volume
+/// GUID (the stable identity). Order-preserving; a drive letter with no bridged volume GUID
+/// is left untouched.
+#[must_use]
+pub fn canonicalize_mounted_volumes(
+    claims: &[Claim],
+    volumes: &[peripheral_core::mounted_volumes::MountedVolume],
+) -> Vec<Claim> {
+    // Group volume identifiers by their disk (signature, offset); the volume GUID in each
+    // group is the canonical key every member re-keys to.
+    let mut names: BTreeMap<(u32, u64), Vec<String>> = BTreeMap::new();
+    let mut canonical: BTreeMap<(u32, u64), String> = BTreeMap::new();
+    for v in volumes {
+        let key = (v.disk_signature, v.partition_offset);
+        if let Some(letter) = v.drive_letter {
+            names.entry(key).or_default().push(format!("{letter}:"));
+        }
+        if let Some(guid) = &v.volume_guid {
+            names.entry(key).or_default().push(guid.clone());
+            canonical.insert(key, guid.clone());
+        }
+    }
+    // Build the identifier → canonical-key map (only for groups that have a volume GUID).
+    let mut remap: BTreeMap<String, String> = BTreeMap::new();
+    for (key, members) in &names {
+        if let Some(canon) = canonical.get(key) {
+            for member in members {
+                remap.insert(member.clone(), canon.clone());
+            }
+        }
+    }
+
+    claims
+        .iter()
+        .map(|claim| {
+            let mut out = claim.clone();
+            if let Some(canon) = remap.get(&claim.device.0) {
+                out.device = DeviceKey(canon.clone());
+            }
+            out
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::{Provenance, SourceKind};
+    use peripheral_core::mounted_volumes::MountedVolume;
+    use peripheral_core::Provenance as PcProvenance;
+
+    fn mounted(letter: Option<char>, guid: Option<&str>, sig: u32, off: u64) -> MountedVolume {
+        MountedVolume {
+            drive_letter: letter,
+            volume_guid: guid.map(str::to_owned),
+            disk_signature: sig,
+            partition_offset: off,
+            source: PcProvenance {
+                file: "SYSTEM".into(),
+                line: 0,
+                key_path: None,
+            },
+        }
+    }
+
+    fn text_claim(device: &str, attr: Attribute, val: &str, src: SourceKind) -> Claim {
+        Claim {
+            device: DeviceKey(device.into()),
+            attribute: attr,
+            value: Value::Text(val.into()),
+            provenance: Provenance {
+                source: src,
+                locator: "x".into(),
+            },
+        }
+    }
+
+    #[test]
+    fn drive_letter_and_volume_guid_facts_collapse_onto_the_volume_guid() {
+        // MountedDevices MBR: E: and {vol} share disk sig 0xAB, offset 0x1000 → same volume.
+        let volumes = [
+            mounted(Some('E'), None, 0xAB, 0x1000),
+            mounted(None, Some("{vol}"), 0xAB, 0x1000),
+        ];
+        let claims = vec![
+            // A VolumeInfoCache label keyed by drive letter E:.
+            text_claim(
+                "E:",
+                Attribute::VolumeName,
+                "IAMAN",
+                SourceKind::VolumeInfoCache,
+            ),
+            // A MountPoints2 mount keyed by the volume GUID.
+            Claim {
+                device: DeviceKey("{vol}".into()),
+                attribute: Attribute::LastConnected,
+                value: Value::Timestamp(1_427_230_953),
+                provenance: Provenance {
+                    source: SourceKind::MountPoints2,
+                    locator: "m".into(),
+                },
+            },
+        ];
+        let out = canonicalize_mounted_volumes(&claims, &volumes);
+        // Both now key on the canonical volume GUID → they correlate into one device.
+        assert!(out.iter().all(|c| c.device == DeviceKey("{vol}".into())));
+    }
+
+    #[test]
+    fn a_drive_letter_without_a_bridged_volume_guid_is_left_untouched() {
+        // Only a drive-letter MBR record (no volume GUID) → no canonical key.
+        let volumes = [mounted(Some('E'), None, 0xAB, 0x1000)];
+        let claims = vec![text_claim(
+            "E:",
+            Attribute::VolumeName,
+            "IAMAN",
+            SourceKind::VolumeInfoCache,
+        )];
+        let out = canonicalize_mounted_volumes(&claims, &volumes);
+        assert_eq!(out[0].device, DeviceKey("E:".into()));
+    }
 
     fn vol_serial(device: &str, serial: &str, src: SourceKind) -> Claim {
         Claim {

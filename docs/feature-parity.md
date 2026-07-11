@@ -37,7 +37,7 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | `MountedDevices` (SYSTEM) | drive-letter ↔ device mapping | USB Detective, USBFT, RegRipper | ✅ (`peripheral-core` 0.3 decodes device-path entries → `DriveLetter` claim; Szechuan `D:`→CD-ROM validated) |
 | `WPDBUSENUM` / Windows Portable Devices (SOFTWARE) | MTP/PTP + mass-storage, volume label | USB Detective, USBFT | 📋 |
 | `VolumeInfoCache` (SOFTWARE) | volume label ↔ serial history | USB Detective | ✅ (`VolumeCacheSource` via `peripheral-core` 0.4; drive-letter→volume-label, joined to the device by drive-letter reconciliation. Tier-1 on the real NIST CFReDS SOFTWARE hive: `E:`→`IAMAN $_@`, matching the answer key) |
-| `MountPoints2` (NTUSER.DAT) | per-user mounts | USB Detective, USBFT, RegRipper | 📋 |
+| `MountPoints2` (NTUSER.DAT) | per-user mounts | USB Detective, USBFT, RegRipper | ✅ (`MountPoints2Source` via `peripheral-core` 0.6; per-user volume-GUID mount + time, unified with the drive letter & label by the MountedDevices MBR-signature bridge. Tier-1 on the real NIST CFReDS: informant mounted `{a2f2048e}` = E: = `IAMAN $_@` at 2015-03-24 21:02:33) |
 | `Amcache.hve` | execution / first-seen corroboration | USB Detective | 📋 |
 | SetupAPI (`setupapi.dev.log`) | first-install time (local, TZ-normalized) | all dedicated | ✅ (`PeripheralSource`) |
 | Linux kernel log (`syslog`/`dmesg`) | USB enumeration (VID/PID, serial, first-seen) | USBFT (parses) | ✅ (`PeripheralSource` via `peripheral-core` `linux_syslog`; UAC-syslog validated) |

@@ -3,6 +3,7 @@
 
 pub mod jumplist;
 pub mod lnk;
+pub mod mountpoints2;
 pub mod partition_diag;
 pub mod peripheral;
 pub mod volume_cache;

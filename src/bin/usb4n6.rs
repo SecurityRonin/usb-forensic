@@ -20,13 +20,15 @@
 //! given). stderr: a summary and graded findings.
 
 use peripheral_core::linux_syslog::parse_linux_syslog;
+use peripheral_core::mounted_volumes::{parse_mounted_volumes, MountedVolume};
+use peripheral_core::mountpoints2::{parse_mountpoints2, UserMount};
 use peripheral_core::registry::parse_registry;
 use peripheral_core::setupapi::parse_setupapi;
 use peripheral_core::volume_info::{parse_volume_info_cache, VolumeLabel};
 use std::process::ExitCode;
 use usb_forensic::{
-    audit, correlate_sources, to_jsonl, HistorySource, JumpListArtifact, JumpListSource,
-    LnkArtifact, LnkSource, PartitionDiagSource, PeripheralSource, SourceKind, VolumeCacheSource,
+    audit, to_jsonl, HistorySource, JumpListArtifact, JumpListSource, LnkArtifact, LnkSource,
+    MountPoints2Source, PartitionDiagSource, PeripheralSource, SourceKind, VolumeCacheSource,
 };
 use winevt_extract::{partition_diag, PartitionDiagEvent};
 
@@ -139,6 +141,8 @@ struct Ingested {
     jumplists: Vec<JumpListArtifact>,
     partition_diag: Vec<PartitionDiagEvent>,
     volume_labels: Vec<VolumeLabel>,
+    mounted_volumes: Vec<MountedVolume>,
+    user_mounts: Vec<UserMount>,
 }
 
 impl Ingested {
@@ -151,6 +155,7 @@ impl Ingested {
             + self.jumplists.len()
             + self.partition_diag.len()
             + self.volume_labels.len()
+            + self.user_mounts.len()
     }
 }
 
@@ -186,10 +191,13 @@ fn ingest(paths: &[&String], year: Option<i64>) -> Option<Ingested> {
         } else if is_registry_hive(&bytes) {
             match winreg_core::hive::Hive::from_bytes(bytes) {
                 Ok(hive) => {
-                    // A SYSTEM hive yields device Enum records; a SOFTWARE hive yields
-                    // VolumeInfoCache labels. Run both — each returns empty on the other.
+                    // Any registry hive is probed by every hive reader; each returns empty
+                    // on a hive that lacks its key. SYSTEM → device Enum + MountedDevices
+                    // MBR volumes; SOFTWARE → VolumeInfoCache labels; NTUSER → MountPoints2.
                     g.registry.extend(parse_registry(&hive, path));
                     g.volume_labels.extend(parse_volume_info_cache(&hive, path));
+                    g.mounted_volumes.extend(parse_mounted_volumes(&hive, path));
+                    g.user_mounts.extend(parse_mountpoints2(&hive, path));
                 }
                 Err(err) => eprintln!("usb4n6: {path}: not a valid registry hive: {err}"),
             }
@@ -230,20 +238,28 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
     let jumplist = JumpListSource::new(&g.jumplists);
     let partdiag = PartitionDiagSource::new(&g.partition_diag);
     let volcache = VolumeCacheSource::new(&g.volume_labels);
-    let sources: [&dyn HistorySource; 7] = [
-        &setupapi, &registry, &linux, &lnk, &jumplist, &partdiag, &volcache,
+    let usermounts = MountPoints2Source::new(&g.user_mounts);
+    let sources: [&dyn HistorySource; 8] = [
+        &setupapi,
+        &registry,
+        &linux,
+        &lnk,
+        &jumplist,
+        &partdiag,
+        &volcache,
+        &usermounts,
     ];
 
-    let histories = if let Some(offset) = tz_offset {
-        // Normalize local-clock timestamps to UTC, then attribute volume-keyed file
-        // access to the carrying device, before correlating.
-        let mut claims: Vec<_> = sources.iter().flat_map(|s| s.claims()).collect();
+    // Gather every claim, optionally normalize local clocks to UTC, then reconcile:
+    // (1) volume-serial → device (file-to-device), and (2) the MountedDevices MBR bridge
+    // unifying drive-letter and volume-GUID facts onto one canonical volume. Then correlate.
+    let mut claims: Vec<_> = sources.iter().flat_map(|s| s.claims()).collect();
+    if let Some(offset) = tz_offset {
         usb_forensic::normalize_local_clocks(&mut claims, offset);
-        let claims = usb_forensic::reconcile_volume_serials(&claims);
-        usb_forensic::correlate(&claims)
-    } else {
-        correlate_sources(&sources)
-    };
+    }
+    let claims = usb_forensic::reconcile_volume_serials(&claims);
+    let claims = usb_forensic::canonicalize_mounted_volumes(&claims, &g.mounted_volumes);
+    let histories = usb_forensic::correlate(&claims);
 
     let findings = audit(&histories);
 

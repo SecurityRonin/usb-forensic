@@ -49,12 +49,13 @@ pub use correlate::{correlate, to_jsonl, CorrelatedAttribute, DeviceHistory, Pro
 pub use docx::render_docx;
 pub use model::{ArtifactContainer, Attribute, Claim, DeviceKey, Provenance, SourceKind, Value};
 pub use pdf::render_pdf;
-pub use reconcile::reconcile_volume_serials;
+pub use reconcile::{canonicalize_mounted_volumes, reconcile_volume_serials};
 pub use render::{format_epoch, render_report, render_table};
 pub use report::audit;
 pub use source::{correlate_sources, HistorySource};
 pub use sources::jumplist::{JumpListArtifact, JumpListSource};
 pub use sources::lnk::{LnkArtifact, LnkSource};
+pub use sources::mountpoints2::MountPoints2Source;
 pub use sources::partition_diag::PartitionDiagSource;
 pub use sources::peripheral::PeripheralSource;
 pub use sources::volume_cache::VolumeCacheSource;

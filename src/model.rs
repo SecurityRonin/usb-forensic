@@ -28,6 +28,8 @@ pub enum SourceKind {
     LinuxKernelLog,
     /// `SOFTWARE\...\Windows Search\VolumeInfoCache` — cached volume labels per drive.
     VolumeInfoCache,
+    /// `NTUSER\...\Explorer\MountPoints2` — per-user volume mounts (by volume GUID).
+    MountPoints2,
 }
 
 /// The physical storage container an artifact lives in — the tamper surface.
@@ -53,6 +55,8 @@ pub enum ArtifactContainer {
     /// The `SOFTWARE` registry hive (VolumeInfoCache, WPD, …) — a file distinct from the
     /// `SYSTEM` hive, so a separate tamper surface.
     SoftwareHive,
+    /// A per-user `NTUSER.DAT` hive (MountPoints2, …) — a distinct per-user tamper surface.
+    UserHive,
 }
 
 impl SourceKind {
@@ -66,6 +70,7 @@ impl SourceKind {
             Self::Lnk | Self::JumpList => ArtifactContainer::LnkFile,
             Self::LinuxKernelLog => ArtifactContainer::KernelLog,
             Self::VolumeInfoCache => ArtifactContainer::SoftwareHive,
+            Self::MountPoints2 => ArtifactContainer::UserHive,
         }
     }
 
@@ -170,6 +175,21 @@ mod tests {
             SourceKind::Usbstor.container()
         );
         assert!(!SourceKind::VolumeInfoCache.clock_is_local());
+    }
+
+    #[test]
+    fn mountpoints2_is_a_per_user_hive_container() {
+        // NTUSER.DAT is per-user — distinct from SYSTEM and SOFTWARE, so a per-user mount
+        // corroborating a machine-wide device is cross-container.
+        assert_eq!(
+            SourceKind::MountPoints2.container(),
+            ArtifactContainer::UserHive
+        );
+        assert_ne!(
+            SourceKind::MountPoints2.container(),
+            SourceKind::VolumeInfoCache.container()
+        );
+        assert!(!SourceKind::MountPoints2.clock_is_local());
     }
 }
 
