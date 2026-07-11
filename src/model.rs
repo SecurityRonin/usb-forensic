@@ -114,6 +114,8 @@ pub enum Attribute {
     /// A drive letter the device's volume was mounted as (e.g. `E:`), from the
     /// `MountedDevices` drive-letter↔device join.
     DriveLetter,
+    /// The volume's encryption type (e.g. `BitLocker`), detected from its boot sector.
+    Encryption,
 }
 
 /// A comparable claim value, normalized by the source adapter.

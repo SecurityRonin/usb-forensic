@@ -59,7 +59,7 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | Reproducibility chain (raw bytes → decoding rule per value) | (none) | 📋 the wedge |
 | Deleted / removed-device recovery (Win10 cleanup) | USB Detective | 📋 |
 | Prior volume names/serials for formatted devices | USB Detective | 📋 |
-| Device/volume encryption-type detection | USB Detective | 📋 |
+| Device/volume encryption-type detection | USB Detective | ✅ (BitLocker via the `-FVE-FS-` VBR signature read from a device image → `Encryption` attribute + `USB-VOLUME-ENCRYPTED` finding. Spec-defined rule (Tier-3); validated against a signature fixture AND the real CFReDS FAT stick as a non-false-positive) |
 | TrueCrypt/VeraCrypt mounted-volume history | USBFT | 📋 |
 | Physical-device→host attribution (image the stick, tie it to its host footprint) | USB Detective, USBFT | ✅ (`DeviceImageSource` + disk-signature canonicalization: a raw device image's MBR disk signature joins the MountedDevices bridge AND its FAT volume serial joins EMDMgmt/LNK — unifying the physical device, drive letter, volume label, and per-user mount into ONE record. Tier-1 on the real CFReDS RM#2 stick: the SanDisk 'IAMAN' stick tied to drive E:, label 'IAMAN \$_@', and the informant's 2015-03-24 mount — volume serial Corroborated across the device media and the host SOFTWARE hive) |
 | File-to-device linking (which files touched which stick) | USB Detective, USBFT | ✅ (`reconcile_volume_serials` — LNK volume-keyed file access re-attributed to the device carrying that volume serial; ambiguous/unmatched left untouched. Rule-tested; end-to-end join needs a FAT-volume + LNK corpus) |

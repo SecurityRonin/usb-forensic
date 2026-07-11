@@ -22,4 +22,6 @@ fn cfreds_rm2_boot_sectors_match_the_host_footprint() {
     assert_eq!(img.disk_signature, 0xE221_034C);
     // Current FAT volume serial == the reformatted EMDMgmt "IAMAN $_@" record.
     assert_eq!(img.fat_volume_serial, Some(3_034_076_057));
+    // Real FAT32 media must NOT false-positive as encrypted.
+    assert_eq!(img.encryption, None);
 }

@@ -17,6 +17,8 @@ pub const CODE_CONFLICT: &str = "USB-TIMESTAMP-CONFLICT";
 pub const CODE_HISTORY: &str = "USB-DEVICE-HISTORY";
 /// The finding code for a physically impossible first-vs-last timestamp ordering.
 pub const CODE_IMPOSSIBLE_ORDER: &str = "USB-IMPOSSIBLE-ORDERING";
+/// The finding code for a device whose volume is encrypted.
+pub const CODE_ENCRYPTED: &str = "USB-VOLUME-ENCRYPTED";
 
 /// Convert correlated device histories into forensic findings.
 ///
@@ -73,8 +75,34 @@ pub fn audit(histories: &[DeviceHistory]) -> Vec<Finding> {
         if let Some(finding) = impossible_ordering(h) {
             out.push(finding);
         }
+        if let Some(finding) = encryption_finding(h) {
+            out.push(finding);
+        }
     }
     out
+}
+
+/// Flag a device whose volume carries an encryption signature (e.g. `BitLocker` read from a
+/// device image's boot sector). A `Low`-severity observation — encryption is a legitimate
+/// data-at-rest protection, but the fact that the volume's contents are inaccessible
+/// without the key is material to the investigation and is stated, not judged.
+fn encryption_finding(h: &DeviceHistory) -> Option<Finding> {
+    let attr = h
+        .attributes
+        .iter()
+        .find(|a| a.attribute == Attribute::Encryption)?;
+    let crate::Value::Text(kind) = &attr.values.first()?.value else {
+        return None;
+    };
+    Some(
+        Finding::observation(Severity::Low, Category::History, CODE_ENCRYPTED)
+            .note(format!(
+                "device {}: volume is {kind}-encrypted — its contents are not accessible \
+                 without the decryption key",
+                h.device.0
+            ))
+            .build(),
+    )
 }
 
 /// The earliest timestamp value across an attribute's corroborating sources, if any.
@@ -344,5 +372,52 @@ mod tests {
         assert!(!audit(&correlate(&claims))
             .iter()
             .any(|f| f.code == CODE_IMPOSSIBLE_ORDER));
+    }
+
+    #[test]
+    fn an_encrypted_device_yields_a_low_encryption_finding() {
+        let claims = [claim(
+            "disk-ABCD1234",
+            Attribute::Encryption,
+            Value::Text("BitLocker".into()),
+            SourceKind::DeviceImage,
+            "img.raw",
+        )];
+        let f = audit(&correlate(&claims))
+            .into_iter()
+            .find(|f| f.code == CODE_ENCRYPTED)
+            .expect("encryption finding");
+        assert_eq!(f.severity, Some(Severity::Low));
+        assert!(f.note.contains("BitLocker"));
+    }
+
+    #[test]
+    fn a_non_encrypted_device_yields_no_encryption_finding() {
+        let claims = [claim(
+            "SN9",
+            Attribute::FirstConnected,
+            Value::Timestamp(1),
+            SourceKind::Usbstor,
+            "k",
+        )];
+        assert!(!audit(&correlate(&claims))
+            .iter()
+            .any(|f| f.code == CODE_ENCRYPTED));
+    }
+
+    #[test]
+    fn an_encryption_attribute_with_a_non_text_value_is_ignored() {
+        // Defensive: the encryption type is a string; a mistyped Timestamp value yields no
+        // finding rather than a panic or a garbled note.
+        let claims = [claim(
+            "disk-1",
+            Attribute::Encryption,
+            Value::Timestamp(0),
+            SourceKind::DeviceImage,
+            "img",
+        )];
+        assert!(!audit(&correlate(&claims))
+            .iter()
+            .any(|f| f.code == CODE_ENCRYPTED));
     }
 }
