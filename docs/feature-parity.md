@@ -54,6 +54,7 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | Merge all sources into one per-device record | USB Detective | ✅ (`correlate` / `correlate_sources`) |
 | Cross-source timestamp comparison per attribute | USB Detective | ✅ core primitive (`Consistency`) |
 | Consistency grading (corroborated / conflicting / single-source) | USB Detective (colour-coded) | ✅ `Consistency` |
+| Anti-forensics / tampering leads (impossible timestamp ordering) | USB Detective (timestamp scoring) | ✅ (`audit` `USB-IMPOSSIBLE-ORDERING`: first-connect after last-connect → MITRE T1070.006) |
 | Per-value source provenance retained | USB Detective | ✅ (`ProvenancedValue`: source + locator) |
 | Reproducibility chain (raw bytes → decoding rule per value) | (none) | 📋 the wedge |
 | Deleted / removed-device recovery (Win10 cleanup) | USB Detective | 📋 |
