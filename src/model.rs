@@ -30,6 +30,8 @@ pub enum SourceKind {
     VolumeInfoCache,
     /// `NTUSER\...\Explorer\MountPoints2` — per-user volume mounts (by volume GUID).
     MountPoints2,
+    /// `SOFTWARE\...\EMDMgmt` — the `ReadyBoost` cache: volume label + serial history.
+    EmdMgmt,
 }
 
 /// The physical storage container an artifact lives in — the tamper surface.
@@ -69,7 +71,7 @@ impl SourceKind {
             Self::PartitionDiag => ArtifactContainer::EventLog,
             Self::Lnk | Self::JumpList => ArtifactContainer::LnkFile,
             Self::LinuxKernelLog => ArtifactContainer::KernelLog,
-            Self::VolumeInfoCache => ArtifactContainer::SoftwareHive,
+            Self::VolumeInfoCache | Self::EmdMgmt => ArtifactContainer::SoftwareHive,
             Self::MountPoints2 => ArtifactContainer::UserHive,
         }
     }
@@ -190,6 +192,14 @@ mod tests {
             SourceKind::VolumeInfoCache.container()
         );
         assert!(!SourceKind::MountPoints2.clock_is_local());
+    }
+
+    #[test]
+    fn emdmgmt_shares_the_software_hive_container() {
+        assert_eq!(
+            SourceKind::EmdMgmt.container(),
+            ArtifactContainer::SoftwareHive
+        );
     }
 }
 

@@ -53,6 +53,7 @@ pub use reconcile::{canonicalize_mounted_volumes, reconcile_volume_serials};
 pub use render::{format_epoch, render_report, render_table};
 pub use report::audit;
 pub use source::{correlate_sources, HistorySource};
+pub use sources::emdmgmt::EmdMgmtSource;
 pub use sources::jumplist::{JumpListArtifact, JumpListSource};
 pub use sources::lnk::{LnkArtifact, LnkSource};
 pub use sources::mountpoints2::MountPoints2Source;

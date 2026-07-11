@@ -19,6 +19,7 @@
 //! reference year for year-less Linux syslog timestamps (required when a syslog is
 //! given). stderr: a summary and graded findings.
 
+use peripheral_core::emdmgmt::{parse_emdmgmt, EmdVolume};
 use peripheral_core::linux_syslog::parse_linux_syslog;
 use peripheral_core::mounted_volumes::{parse_mounted_volumes, MountedVolume};
 use peripheral_core::mountpoints2::{parse_mountpoints2, UserMount};
@@ -27,8 +28,9 @@ use peripheral_core::setupapi::parse_setupapi;
 use peripheral_core::volume_info::{parse_volume_info_cache, VolumeLabel};
 use std::process::ExitCode;
 use usb_forensic::{
-    audit, to_jsonl, HistorySource, JumpListArtifact, JumpListSource, LnkArtifact, LnkSource,
-    MountPoints2Source, PartitionDiagSource, PeripheralSource, SourceKind, VolumeCacheSource,
+    audit, to_jsonl, EmdMgmtSource, HistorySource, JumpListArtifact, JumpListSource, LnkArtifact,
+    LnkSource, MountPoints2Source, PartitionDiagSource, PeripheralSource, SourceKind,
+    VolumeCacheSource,
 };
 use winevt_extract::{partition_diag, PartitionDiagEvent};
 
@@ -141,6 +143,7 @@ struct Ingested {
     jumplists: Vec<JumpListArtifact>,
     partition_diag: Vec<PartitionDiagEvent>,
     volume_labels: Vec<VolumeLabel>,
+    emd_volumes: Vec<EmdVolume>,
     mounted_volumes: Vec<MountedVolume>,
     user_mounts: Vec<UserMount>,
 }
@@ -156,6 +159,7 @@ impl Ingested {
             + self.partition_diag.len()
             + self.volume_labels.len()
             + self.user_mounts.len()
+            + self.emd_volumes.len()
     }
 }
 
@@ -198,6 +202,7 @@ fn ingest(paths: &[&String], year: Option<i64>) -> Option<Ingested> {
                     g.volume_labels.extend(parse_volume_info_cache(&hive, path));
                     g.mounted_volumes.extend(parse_mounted_volumes(&hive, path));
                     g.user_mounts.extend(parse_mountpoints2(&hive, path));
+                    g.emd_volumes.extend(parse_emdmgmt(&hive, path));
                 }
                 Err(err) => eprintln!("usb4n6: {path}: not a valid registry hive: {err}"),
             }
@@ -239,7 +244,8 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
     let partdiag = PartitionDiagSource::new(&g.partition_diag);
     let volcache = VolumeCacheSource::new(&g.volume_labels);
     let usermounts = MountPoints2Source::new(&g.user_mounts);
-    let sources: [&dyn HistorySource; 8] = [
+    let emd = EmdMgmtSource::new(&g.emd_volumes);
+    let sources: [&dyn HistorySource; 9] = [
         &setupapi,
         &registry,
         &linux,
@@ -248,6 +254,7 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
         &partdiag,
         &volcache,
         &usermounts,
+        &emd,
     ];
 
     // Gather every claim, optionally normalize local clocks to UTC, then reconcile:
