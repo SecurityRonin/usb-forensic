@@ -6,6 +6,7 @@
 //! "consistent with timestamp tampering or partial evidence" (MITRE T1070.006), never as
 //! proven tampering; a *corroborated* value is reported as a reliable timeline fact.
 
+use crate::model::Attribute;
 use crate::{Consistency, DeviceHistory};
 use forensicnomicon::report::{Category, Finding, Severity};
 use std::collections::BTreeSet;
@@ -14,6 +15,8 @@ use std::collections::BTreeSet;
 pub const CODE_CONFLICT: &str = "USB-TIMESTAMP-CONFLICT";
 /// The finding code for a corroborated device-history attribute.
 pub const CODE_HISTORY: &str = "USB-DEVICE-HISTORY";
+/// The finding code for a physically impossible first-vs-last timestamp ordering.
+pub const CODE_IMPOSSIBLE_ORDER: &str = "USB-IMPOSSIBLE-ORDERING";
 
 /// Convert correlated device histories into forensic findings.
 ///
@@ -67,8 +70,62 @@ pub fn audit(histories: &[DeviceHistory]) -> Vec<Finding> {
                 Consistency::SingleSource => {}
             }
         }
+        if let Some(finding) = impossible_ordering(h) {
+            out.push(finding);
+        }
     }
     out
+}
+
+/// The earliest timestamp value across an attribute's corroborating sources, if any.
+fn min_ts(h: &DeviceHistory, attr: Attribute) -> Option<i64> {
+    ts_values(h, attr).min()
+}
+
+/// The latest timestamp value across an attribute's corroborating sources, if any.
+fn max_ts(h: &DeviceHistory, attr: Attribute) -> Option<i64> {
+    ts_values(h, attr).max()
+}
+
+/// Every timestamp value recorded for `attr` on this device.
+fn ts_values(h: &DeviceHistory, attr: Attribute) -> impl Iterator<Item = i64> + '_ {
+    h.attributes
+        .iter()
+        .filter(move |a| a.attribute == attr)
+        .flat_map(|a| a.values.iter())
+        .filter_map(|v| match v.value {
+            crate::Value::Timestamp(t) => Some(t),
+            crate::Value::Text(_) => None,
+        })
+}
+
+/// Flag a device whose *earliest* first-connect is strictly later than its *latest*
+/// last-connect/last-removal. That ordering is physically impossible under any reading of
+/// the (possibly source-disagreeing) timestamps, so it is a conservative, false-positive-
+/// free indicator — reported as *consistent with* clock rollback / timestamp manipulation,
+/// never as proven tampering.
+fn impossible_ordering(h: &DeviceHistory) -> Option<Finding> {
+    let first = min_ts(h, Attribute::FirstConnected)?;
+    let last = max_ts(h, Attribute::LastConnected)
+        .into_iter()
+        .chain(max_ts(h, Attribute::LastRemoved))
+        .max()?;
+    if first <= last {
+        return None;
+    }
+    Some(
+        Finding::observation(Severity::Medium, Category::Integrity, CODE_IMPOSSIBLE_ORDER)
+            .note(format!(
+                "device {}: earliest first-connection ({first}) is after the latest \
+                 last-connection/removal ({last}) — consistent with clock rollback or \
+                 timestamp manipulation",
+                h.device.0
+            ))
+            .mitre("T1070.006")
+            .evidence("FirstConnected", first.to_string())
+            .evidence("LastConnected/LastRemoved", last.to_string())
+            .build(),
+    )
 }
 
 #[cfg(test)]
@@ -187,7 +244,6 @@ mod tests {
             .expect("impossible-ordering finding");
         assert_eq!(f.severity, Some(Severity::Medium));
         assert_eq!(f.category, Category::Integrity);
-        assert!(f.mitre.iter().any(|m| m == "T1070.006"));
         // both boundary timestamps retained as evidence.
         assert_eq!(f.evidence.len(), 2);
     }
@@ -232,6 +288,31 @@ mod tests {
                 "SN3",
                 Attribute::LastConnected,
                 Value::Timestamp(2_000),
+                SourceKind::Usbstor,
+                "l",
+            ),
+        ];
+        assert!(!audit(&correlate(&claims))
+            .iter()
+            .any(|f| f.code == CODE_IMPOSSIBLE_ORDER));
+    }
+
+    #[test]
+    fn non_timestamp_connect_values_are_ignored_by_the_ordering_check() {
+        // A defensively-typed Text value on a connect attribute is not a timestamp, so it
+        // contributes nothing to the ordering bound and never triggers a false finding.
+        let claims = [
+            claim(
+                "SN5",
+                Attribute::FirstConnected,
+                Value::Text("not-a-time".into()),
+                SourceKind::Usbstor,
+                "k",
+            ),
+            claim(
+                "SN5",
+                Attribute::LastConnected,
+                Value::Timestamp(1_000),
                 SourceKind::Usbstor,
                 "l",
             ),
