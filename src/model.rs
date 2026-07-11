@@ -26,6 +26,8 @@ pub enum SourceKind {
     JumpList,
     /// A Linux kernel log (`syslog` / `dmesg`) — USB enumeration events.
     LinuxKernelLog,
+    /// `SOFTWARE\...\Windows Search\VolumeInfoCache` — cached volume labels per drive.
+    VolumeInfoCache,
 }
 
 /// The physical storage container an artifact lives in — the tamper surface.
@@ -48,6 +50,9 @@ pub enum ArtifactContainer {
     LnkFile,
     /// A Linux kernel log file (`syslog` / `dmesg`).
     KernelLog,
+    /// The `SOFTWARE` registry hive (VolumeInfoCache, WPD, …) — a file distinct from the
+    /// `SYSTEM` hive, so a separate tamper surface.
+    SoftwareHive,
 }
 
 impl SourceKind {
@@ -60,6 +65,7 @@ impl SourceKind {
             Self::PartitionDiag => ArtifactContainer::EventLog,
             Self::Lnk | Self::JumpList => ArtifactContainer::LnkFile,
             Self::LinuxKernelLog => ArtifactContainer::KernelLog,
+            Self::VolumeInfoCache => ArtifactContainer::SoftwareHive,
         }
     }
 

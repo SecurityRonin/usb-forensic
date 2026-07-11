@@ -140,6 +140,61 @@ mod tests {
         assert_eq!(out[0].device, DeviceKey("NO-MATCH".into()));
     }
 
+    fn drive_letter(device: &str, letter: &str, src: SourceKind) -> Claim {
+        Claim {
+            device: DeviceKey(device.into()),
+            attribute: Attribute::DriveLetter,
+            value: Value::Text(letter.into()),
+            provenance: Provenance {
+                source: src,
+                locator: "d".into(),
+            },
+        }
+    }
+
+    fn volume_name(device: &str, name: &str) -> Claim {
+        Claim {
+            device: DeviceKey(device.into()),
+            attribute: Attribute::VolumeName,
+            value: Value::Text(name.into()),
+            provenance: Provenance {
+                source: SourceKind::VolumeInfoCache,
+                locator: "v".into(),
+            },
+        }
+    }
+
+    #[test]
+    fn volume_label_is_reattributed_to_the_device_mounted_at_that_drive_letter() {
+        // A device (keyed by serial) mounted at E: (a DriveLetter claim), and a
+        // VolumeInfoCache label keyed by the drive-letter pseudo-device "E:". The label
+        // should re-key onto the physical device.
+        let claims = vec![
+            drive_letter("USBSTOR-DEV-1", "E:", SourceKind::Usbstor),
+            volume_name("E:", "Authorized USB"),
+        ];
+        let out = reconcile_volume_serials(&claims);
+        assert_eq!(
+            *device_of(&out, Attribute::VolumeName, SourceKind::VolumeInfoCache),
+            DeviceKey("USBSTOR-DEV-1".into())
+        );
+    }
+
+    #[test]
+    fn ambiguous_drive_letter_label_is_left_untouched() {
+        // Two devices both report drive E: — can't disambiguate, so the label stays.
+        let claims = vec![
+            drive_letter("DEV-A", "E:", SourceKind::Usbstor),
+            drive_letter("DEV-B", "E:", SourceKind::PartitionDiag),
+            volume_name("E:", "Authorized USB"),
+        ];
+        let out = reconcile_volume_serials(&claims);
+        assert_eq!(
+            *device_of(&out, Attribute::VolumeName, SourceKind::VolumeInfoCache),
+            DeviceKey("E:".into())
+        );
+    }
+
     #[test]
     fn non_text_volume_serial_cannot_seed_the_map() {
         // A VolumeSerial claim whose value is not text can't map a serial → device, so a

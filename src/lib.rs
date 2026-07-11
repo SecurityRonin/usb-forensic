@@ -57,6 +57,7 @@ pub use sources::jumplist::{JumpListArtifact, JumpListSource};
 pub use sources::lnk::{LnkArtifact, LnkSource};
 pub use sources::partition_diag::PartitionDiagSource;
 pub use sources::peripheral::PeripheralSource;
+pub use sources::volume_cache::VolumeCacheSource;
 pub use timeline::{super_timeline, timeline_to_jsonl, TimelineEvent};
 pub use tz::normalize_local_clocks;
 

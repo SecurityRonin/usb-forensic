@@ -5,3 +5,4 @@ pub mod jumplist;
 pub mod lnk;
 pub mod partition_diag;
 pub mod peripheral;
+pub mod volume_cache;
