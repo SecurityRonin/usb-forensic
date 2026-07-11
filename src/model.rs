@@ -156,6 +156,21 @@ mod tests {
         );
         assert!(!SourceKind::Usbstor.clock_is_local());
     }
+
+    #[test]
+    fn volume_info_cache_is_the_software_hive_a_distinct_container_from_system() {
+        // SOFTWARE and SYSTEM are separate files → separate tamper surfaces, so a
+        // VolumeInfoCache label corroborating a SYSTEM device is cross-container.
+        assert_eq!(
+            SourceKind::VolumeInfoCache.container(),
+            ArtifactContainer::SoftwareHive
+        );
+        assert_ne!(
+            SourceKind::VolumeInfoCache.container(),
+            SourceKind::Usbstor.container()
+        );
+        assert!(!SourceKind::VolumeInfoCache.clock_is_local());
+    }
 }
 
 /// One atomic extracted fact about one device, from one source.

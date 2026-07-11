@@ -26,15 +26,20 @@ pub fn reconcile_volume_serials(claims: &[Claim]) -> Vec<Claim> {
     // pseudo-device's own serial (key == value) is not an assertion of ownership.
     let mut carriers: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for claim in claims {
-        if claim.attribute == Attribute::VolumeSerial {
-            if let Value::Text(serial) = &claim.value {
-                if claim.device.0 != *serial {
-                    carriers
-                        .entry(serial.clone())
-                        .or_default()
-                        .insert(claim.device.0.clone());
-                }
-            }
+        // A physical device asserts it *carries* an identity when its device key differs
+        // from the value: a device's volume serial (vs the LNK pseudo-device whose key ==
+        // value), or the drive letter it was mounted at (vs a VolumeInfoCache label whose
+        // key IS the drive letter). Both feed the same identity → device map.
+        let (Attribute::VolumeSerial | Attribute::DriveLetter, Value::Text(identity)) =
+            (claim.attribute, &claim.value)
+        else {
+            continue;
+        };
+        if claim.device.0 != *identity {
+            carriers
+                .entry(identity.clone())
+                .or_default()
+                .insert(claim.device.0.clone());
         }
     }
 

@@ -84,4 +84,14 @@ mod tests {
         assert_eq!(claims.len(), 2);
         assert_eq!(claims[1].device, DeviceKey("F:".to_string()));
     }
+
+    #[test]
+    fn locator_falls_back_to_the_file_when_no_key_path() {
+        // A record without a key_path locates by the source file name (defensive branch).
+        let mut l = label('E', "Authorized USB");
+        l.source.key_path = None;
+        let labels = [l];
+        let claims = VolumeCacheSource::new(&labels).claims();
+        assert_eq!(claims[0].provenance.locator, "SOFTWARE");
+    }
 }

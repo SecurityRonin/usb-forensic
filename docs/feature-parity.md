@@ -36,7 +36,7 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | **`Enum\SCSI`** (UASP / USB-3 drives) | modern drives absent from `USBSTOR` | (gap in most) | ✅ (same reader; Szechuan VMware disk validated) |
 | `MountedDevices` (SYSTEM) | drive-letter ↔ device mapping | USB Detective, USBFT, RegRipper | ✅ (`peripheral-core` 0.3 decodes device-path entries → `DriveLetter` claim; Szechuan `D:`→CD-ROM validated) |
 | `WPDBUSENUM` / Windows Portable Devices (SOFTWARE) | MTP/PTP + mass-storage, volume label | USB Detective, USBFT | 📋 |
-| `VolumeInfoCache` (SOFTWARE) | volume label ↔ serial history | USB Detective | 📋 |
+| `VolumeInfoCache` (SOFTWARE) | volume label ↔ serial history | USB Detective | ✅ (`VolumeCacheSource` via `peripheral-core` 0.4; drive-letter→volume-label, joined to the device by drive-letter reconciliation. Tier-1 on the real NIST CFReDS SOFTWARE hive: `E:`→`IAMAN $_@`, matching the answer key) |
 | `MountPoints2` (NTUSER.DAT) | per-user mounts | USB Detective, USBFT, RegRipper | 📋 |
 | `Amcache.hve` | execution / first-seen corroboration | USB Detective | 📋 |
 | SetupAPI (`setupapi.dev.log`) | first-install time (local, TZ-normalized) | all dedicated | ✅ (`PeripheralSource`) |

@@ -22,10 +22,11 @@
 use peripheral_core::linux_syslog::parse_linux_syslog;
 use peripheral_core::registry::parse_registry;
 use peripheral_core::setupapi::parse_setupapi;
+use peripheral_core::volume_info::{parse_volume_info_cache, VolumeLabel};
 use std::process::ExitCode;
 use usb_forensic::{
     audit, correlate_sources, to_jsonl, HistorySource, JumpListArtifact, JumpListSource,
-    LnkArtifact, LnkSource, PartitionDiagSource, PeripheralSource, SourceKind,
+    LnkArtifact, LnkSource, PartitionDiagSource, PeripheralSource, SourceKind, VolumeCacheSource,
 };
 use winevt_extract::{partition_diag, PartitionDiagEvent};
 
@@ -137,6 +138,7 @@ struct Ingested {
     lnk: Vec<LnkArtifact>,
     jumplists: Vec<JumpListArtifact>,
     partition_diag: Vec<PartitionDiagEvent>,
+    volume_labels: Vec<VolumeLabel>,
 }
 
 impl Ingested {
@@ -148,6 +150,7 @@ impl Ingested {
             + self.lnk.len()
             + self.jumplists.len()
             + self.partition_diag.len()
+            + self.volume_labels.len()
     }
 }
 
@@ -182,7 +185,12 @@ fn ingest(paths: &[&String], year: Option<i64>) -> Option<Ingested> {
             }
         } else if is_registry_hive(&bytes) {
             match winreg_core::hive::Hive::from_bytes(bytes) {
-                Ok(hive) => g.registry.extend(parse_registry(&hive, path)),
+                Ok(hive) => {
+                    // A SYSTEM hive yields device Enum records; a SOFTWARE hive yields
+                    // VolumeInfoCache labels. Run both — each returns empty on the other.
+                    g.registry.extend(parse_registry(&hive, path));
+                    g.volume_labels.extend(parse_volume_info_cache(&hive, path));
+                }
                 Err(err) => eprintln!("usb4n6: {path}: not a valid registry hive: {err}"),
             }
         } else if is_evtx(&bytes) {
@@ -221,8 +229,10 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
     let lnk = LnkSource::new(&g.lnk);
     let jumplist = JumpListSource::new(&g.jumplists);
     let partdiag = PartitionDiagSource::new(&g.partition_diag);
-    let sources: [&dyn HistorySource; 6] =
-        [&setupapi, &registry, &linux, &lnk, &jumplist, &partdiag];
+    let volcache = VolumeCacheSource::new(&g.volume_labels);
+    let sources: [&dyn HistorySource; 7] = [
+        &setupapi, &registry, &linux, &lnk, &jumplist, &partdiag, &volcache,
+    ];
 
     let histories = if let Some(offset) = tz_offset {
         // Normalize local-clock timestamps to UTC, then attribute volume-keyed file
