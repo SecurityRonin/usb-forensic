@@ -160,4 +160,108 @@ mod tests {
         )];
         assert!(audit(&correlate(&claims)).is_empty());
     }
+
+    #[test]
+    fn first_connected_after_last_connected_is_flagged_impossible() {
+        // FirstConnected (later) strictly after LastConnected (earlier) is physically
+        // impossible → a clock-rollback / timestamp-manipulation lead.
+        let claims = [
+            claim(
+                "SN1",
+                Attribute::FirstConnected,
+                Value::Timestamp(1_700_000_500),
+                SourceKind::Usbstor,
+                "k",
+            ),
+            claim(
+                "SN1",
+                Attribute::LastConnected,
+                Value::Timestamp(1_700_000_100),
+                SourceKind::Usbstor,
+                "l",
+            ),
+        ];
+        let f = audit(&correlate(&claims))
+            .into_iter()
+            .find(|f| f.code == CODE_IMPOSSIBLE_ORDER)
+            .expect("impossible-ordering finding");
+        assert_eq!(f.severity, Some(Severity::Medium));
+        assert_eq!(f.category, Category::Integrity);
+        assert!(f.mitre.iter().any(|m| m == "T1070.006"));
+        // both boundary timestamps retained as evidence.
+        assert_eq!(f.evidence.len(), 2);
+    }
+
+    #[test]
+    fn last_removed_before_first_connected_is_flagged() {
+        // The check also covers LastRemoved, and uses the conservative bound: the
+        // EARLIEST first-connect after the LATEST last-* event.
+        let claims = [
+            claim(
+                "SN2",
+                Attribute::FirstConnected,
+                Value::Timestamp(2_000),
+                SourceKind::SetupApi,
+                "k",
+            ),
+            claim(
+                "SN2",
+                Attribute::LastRemoved,
+                Value::Timestamp(1_000),
+                SourceKind::Usbstor,
+                "l",
+            ),
+        ];
+        assert!(audit(&correlate(&claims))
+            .iter()
+            .any(|f| f.code == CODE_IMPOSSIBLE_ORDER));
+    }
+
+    #[test]
+    fn normal_ordering_yields_no_impossible_finding() {
+        // FirstConnected before LastConnected — the normal case.
+        let claims = [
+            claim(
+                "SN3",
+                Attribute::FirstConnected,
+                Value::Timestamp(1_000),
+                SourceKind::Usbstor,
+                "k",
+            ),
+            claim(
+                "SN3",
+                Attribute::LastConnected,
+                Value::Timestamp(2_000),
+                SourceKind::Usbstor,
+                "l",
+            ),
+        ];
+        assert!(!audit(&correlate(&claims))
+            .iter()
+            .any(|f| f.code == CODE_IMPOSSIBLE_ORDER));
+    }
+
+    #[test]
+    fn equal_first_and_last_is_not_impossible() {
+        // A single connect: first == last is valid, not a violation (strict `>` only).
+        let claims = [
+            claim(
+                "SN4",
+                Attribute::FirstConnected,
+                Value::Timestamp(5_000),
+                SourceKind::Usbstor,
+                "k",
+            ),
+            claim(
+                "SN4",
+                Attribute::LastConnected,
+                Value::Timestamp(5_000),
+                SourceKind::Usbstor,
+                "l",
+            ),
+        ];
+        assert!(!audit(&correlate(&claims))
+            .iter()
+            .any(|f| f.code == CODE_IMPOSSIBLE_ORDER));
+    }
 }
