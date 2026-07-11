@@ -51,23 +51,49 @@ fn push_event(event: &PartitionDiagEvent, out: &mut Vec<Claim>) {
     let Some(device) = device_key(event) else {
         return;
     };
-    // The provider timestamp is ISO-8601 UTC; a malformed one is dropped, never
-    // turned into a bogus epoch (a wrong time is worse than a missing one).
-    let Ok(when) = event.timestamp.parse::<jiff::Timestamp>() else {
-        return;
-    };
-    out.push(Claim {
+    let locator = format!(
+        "Microsoft-Windows-Partition/Diagnostic#1006 DiskId={}",
+        event.disk_id.as_deref().unwrap_or("?")
+    );
+    let claim = |device, attribute, value| Claim {
         device,
-        attribute: Attribute::LastConnected,
-        value: Value::Timestamp(when.as_second()),
+        attribute,
+        value,
         provenance: Provenance {
             source: SourceKind::PartitionDiag,
-            locator: format!(
-                "Microsoft-Windows-Partition/Diagnostic#1006 DiskId={}",
-                event.disk_id.as_deref().unwrap_or("?")
-            ),
+            locator: locator.clone(),
         },
-    });
+    };
+    // The provider timestamp is ISO-8601 UTC; a malformed one is dropped, never turned
+    // into a bogus epoch (a wrong time is worse than a missing one).
+    if let Ok(when) = event.timestamp.parse::<jiff::Timestamp>() {
+        out.push(claim(
+            device.clone(),
+            Attribute::LastConnected,
+            Value::Timestamp(when.as_second()),
+        ));
+    }
+    if let Some(serial) = volume_serial_string(event) {
+        out.push(claim(device, Attribute::VolumeSerial, Value::Text(serial)));
+    }
+}
+
+/// The device's volume serial as a matchable string. A FAT serial is rendered the way a
+/// Shell Link records its `DriveSerialNumber` (`XXXX-XXXX`, the 4-byte join key) so it can
+/// reconcile with LNK file-access on the same volume; an NTFS serial is rendered in its
+/// distinct 8-byte form (`XXXXXXXX-XXXXXXXX`), which by construction cannot collide with a
+/// 4-byte LNK serial. `None` when the VBR carried neither.
+fn volume_serial_string(event: &PartitionDiagEvent) -> Option<String> {
+    if let Some(fat) = event.fat_volume_serial {
+        return Some(format!("{:04X}-{:04X}", fat >> 16, fat & 0xFFFF));
+    }
+    event.ntfs_volume_serial.map(|ntfs| {
+        format!(
+            "{:08X}-{:08X}",
+            (ntfs >> 32) as u32,
+            (ntfs & 0xFFFF_FFFF) as u32
+        )
+    })
 }
 
 #[cfg(test)]
