@@ -3,4 +3,5 @@
 
 pub mod jumplist;
 pub mod lnk;
+pub mod partition_diag;
 pub mod peripheral;
