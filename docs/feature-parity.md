@@ -91,7 +91,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 | Machine-readable output (JSONL, diffable, pipeable) | (weak in all — Excel/CSV only) | ✅ (`to_jsonl`, default) |
 | `forensicnomicon::report` findings (fleet-uniform, MITRE-tagged) | (fleet-only) | ✅ (`audit`) |
 | Court-ready report with per-value source chain | (Excel only elsewhere) | ✅ native **DOCX + PDF** (`--docx`/`--pdf`, both oracle-validated) + Markdown (`--report`) |
-| Volume / MBR export | USB Detective | 📋 |
+| Volume / MBR export | USB Detective | ✅ (`usb4n6 --export-mbr`: annotated hex dump of each device image's raw 512-byte MBR sector, headed by the disk signature) |
 | Differential mode vs USB Detective / RegRipper (validation) | (none) | 📋 |
 
 ## 6. Engineering posture (the fleet differentiators)

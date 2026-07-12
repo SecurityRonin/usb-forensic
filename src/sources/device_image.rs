@@ -18,7 +18,6 @@
 
 use crate::{Attribute, Claim, DeviceKey, HistorySource, Provenance, SourceKind, Value};
 
-/// A physical device's boot-sector identity.
 /// A detected volume-encryption / inaccessible-contents state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncryptionKind {
@@ -45,6 +44,7 @@ impl EncryptionKind {
     }
 }
 
+/// A physical device's boot-sector identity, decoded from its raw disk image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceImage {
     /// MBR disk signature (4 bytes at offset `0x1B8`) — joins the `MountedDevices` bridge.
@@ -54,6 +54,8 @@ pub struct DeviceImage {
     pub fat_volume_serial: Option<u32>,
     /// The volume-encryption type, when a boot sector carries an encryption signature.
     pub encryption: Option<EncryptionKind>,
+    /// The raw 512-byte MBR sector, retained for export/verification.
+    pub mbr: [u8; 512],
 }
 
 /// Decode a raw disk image's boot sectors. Requires a valid MBR (the `0x55AA` boot
@@ -92,10 +94,13 @@ pub fn parse_boot_sectors(image: &[u8]) -> Option<DeviceImage> {
             fat_volume_serial = Some(fat_bs_volid(vbr));
         }
     }
+    let mut mbr_copy = [0u8; 512];
+    mbr_copy.copy_from_slice(mbr);
     Some(DeviceImage {
         disk_signature,
         fat_volume_serial,
         encryption,
+        mbr: mbr_copy,
     })
 }
 
@@ -149,6 +154,38 @@ impl<'a> DeviceImageSource<'a> {
 /// Render a 4-byte serial as `XXXX-XXXX` (the canonical `vol` form other sources use).
 fn fmt_serial(serial: u32) -> String {
     format!("{:04X}-{:04X}", serial >> 16, serial & 0xFFFF)
+}
+
+/// Export a device image's raw 512-byte MBR sector as an annotated hex dump (16 bytes per
+/// line, `offset  hex  |ascii|`), headed by the source locator and disk signature — for an
+/// examiner to inspect or archive the boot sector alongside the analysis.
+#[must_use]
+pub fn export_mbr_hex(image: &DeviceImage, locator: &str) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "MBR of {locator} (disk signature {})",
+        fmt_serial(image.disk_signature)
+    );
+    for (i, chunk) in image.mbr.chunks(16).enumerate() {
+        let hex = chunk.iter().fold(String::new(), |mut acc, b| {
+            let _ = write!(acc, "{b:02X} ");
+            acc
+        });
+        let ascii: String = chunk
+            .iter()
+            .map(|&b| {
+                if (0x20..0x7F).contains(&b) {
+                    b as char
+                } else {
+                    '.'
+                }
+            })
+            .collect();
+        let _ = writeln!(out, "{:08X}  {hex:<48} |{ascii}|", i * 16);
+    }
+    out
 }
 
 impl HistorySource for DeviceImageSource<'_> {
@@ -256,6 +293,7 @@ mod tests {
             disk_signature: 0xE221_034C,
             fat_volume_serial: Some(0xB4D8_5399),
             encryption: None,
+            mbr: [0u8; 512],
         };
         let claims = DeviceImageSource::new(&img, "rm2.raw").claims();
         assert_eq!(claims.len(), 1);
@@ -269,12 +307,29 @@ mod tests {
     }
 
     #[test]
+    fn export_mbr_hex_dumps_the_boot_sector_with_signature_and_ascii() {
+        let img = mbr_with_fat32(0xE221_034C, 1, 0xB4D8_5399);
+        let d = parse_boot_sectors(&img).expect("valid MBR");
+        let dump = export_mbr_hex(&d, "rm2.raw");
+        assert!(dump.contains("MBR of rm2.raw"));
+        assert!(dump.contains("E221-034C"), "disk signature in header");
+        assert!(dump.contains("00000000 "), "offset column");
+        assert!(
+            dump.contains("55 AA"),
+            "the boot signature bytes are present"
+        );
+        // 512 bytes / 16 per line = 32 lines + 1 header.
+        assert_eq!(dump.lines().count(), 33);
+    }
+
+    #[test]
     fn source_without_a_fat_serial_or_encryption_emits_nothing() {
         // A device with no FAT partition and no encryption carries nothing to correlate on.
         let img = DeviceImage {
             disk_signature: 1,
             fat_volume_serial: None,
             encryption: None,
+            mbr: [0u8; 512],
         };
         assert!(DeviceImageSource::new(&img, "x").claims().is_empty());
     }
@@ -355,6 +410,7 @@ mod tests {
             disk_signature: 0xABCD_1234,
             fat_volume_serial: None,
             encryption: Some(EncryptionKind::BitLocker),
+            mbr: [0u8; 512],
         };
         let claims = DeviceImageSource::new(&img, "x").claims();
         assert_eq!(claims.len(), 1);

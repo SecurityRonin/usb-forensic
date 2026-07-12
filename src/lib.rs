@@ -55,7 +55,7 @@ pub use report::audit;
 pub use source::{correlate_sources, HistorySource};
 pub use sources::apple_ipod::{parse_ipod_plist, AppleDevice, AppleIPodSource};
 pub use sources::device_image::{
-    parse_boot_sectors, DeviceImage, DeviceImageSource, EncryptionKind,
+    export_mbr_hex, parse_boot_sectors, DeviceImage, DeviceImageSource, EncryptionKind,
 };
 pub use sources::emdmgmt::EmdMgmtSource;
 pub use sources::jumplist::{JumpListArtifact, JumpListSource};

@@ -7,7 +7,7 @@
 //! writes output.
 //!
 //! ```text
-//! usb4n6 [--table|--timeline|--files|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] <file>...
+//! usb4n6 [--table|--timeline|--files|--export-mbr|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] <file>...
 //!     # files: setupapi.dev.log, a SYSTEM hive, .lnk, *.automaticDestinations-ms,
 //!     #        a Partition/Diagnostic .evtx, a raw USB device image, a macOS com.apple.iPod.plist, or a Linux syslog/dmesg (auto-detected)
 //! usb4n6 --version
@@ -54,6 +54,8 @@ fn main() -> ExitCode {
         Output::Timeline
     } else if args.iter().any(|a| a == "--files") {
         Output::Files
+    } else if args.iter().any(|a| a == "--export-mbr") {
+        Output::ExportMbr
     } else {
         Output::Jsonl
     };
@@ -70,7 +72,7 @@ fn main() -> ExitCode {
     let paths: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
     if paths.is_empty() {
         eprintln!(
-            "usage: usb4n6 [--table|--timeline|--files|--report|--docx|--pdf] [--tz-offset=<secs>] \
+            "usage: usb4n6 [--table|--timeline|--files|--export-mbr|--report|--docx|--pdf] [--tz-offset=<secs>] \
              [--year=<YYYY>] <file>...  \
              (setupapi.dev.log/SYSTEM hive/.lnk/jumplist/.evtx/Linux syslog; -V)"
         );
@@ -91,6 +93,8 @@ enum Output {
     Timeline,
     /// The opened/accessed-files report: files touched on each device.
     Files,
+    /// Export each input device image's raw MBR sector as an annotated hex dump.
+    ExportMbr,
     /// A court-oriented Markdown forensic report.
     Report,
     /// The forensic report as a native Word `.docx` (binary; redirect to a file).
@@ -359,6 +363,11 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
         },
         Output::Table => usb_forensic::render_table(&histories),
         Output::Files => usb_forensic::render_accessed_files(&histories),
+        Output::ExportMbr => g
+            .device_images
+            .iter()
+            .map(|(img, loc)| usb_forensic::export_mbr_hex(img, loc))
+            .collect(),
         Output::Timeline => {
             let events = usb_forensic::super_timeline(&histories);
             match usb_forensic::timeline_to_jsonl(&events) {
