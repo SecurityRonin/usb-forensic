@@ -9,13 +9,12 @@
 //! that host artifacts alone cannot — attributing a *physical device in evidence* to what
 //! it did on the machine.
 //!
-//! MBR + GPT partition parsing and filesystem-signature detection are delegated to
-//! [`mbr_partition_forensic`], which is tested against real disk corpora covering every
-//! partition-table + filesystem combination — so this source never re-parses a partition
-//! table by hand (a GPT protective MBR is recognized as GPT via `MbrAnalysis::gpt`, not
-//! mis-walked as MBR partitions). On top of that partition list this source reads the two
-//! USB-attribution values the parser does not surface: each partition's FAT `BS_VolID`, and
-//! BitLocker.
+//! Partition-scheme dispatch (MBR / GPT / APM) and filesystem-signature detection are
+//! delegated to the [`disk_forensic`] crate, which is tested against real disk corpora
+//! covering every partition-table + filesystem combination — so this source never re-parses
+//! a partition table by hand (a GPT protective MBR is recognized as GPT, not mis-walked as
+//! MBR partitions). On top of that partition list this source reads the two USB-attribution
+//! values `disk-forensic` does not surface: each partition's FAT `BS_VolID`, and BitLocker.
 //!
 //! **Volume encryption.** A **fixed-drive** BitLocker volume replaces the VBR OEM identifier
 //! (offset 3) with the documented `-FVE-FS-` signature (Windows Vista `EB 52 90`, 7-10
@@ -24,13 +23,14 @@
 //! BitLocker identifier GUID `4967D63B-2E29-4AD8-8399-F6A339E3D001` carried in the volume
 //! header (libbde [BDE format], volume-header tables). Detection scans the volume header for
 //! that GUID, so it catches every BitLocker layout version regardless of the exact offset. A
-//! detector-reported LUKS or unrecognized filesystem is surfaced likewise.
+//! [`disk_forensic`]-reported LUKS or unrecognized filesystem is surfaced likewise.
 //! Detection is a spec-defined rule, validated against spec-faithful volume headers and
 //! against real unencrypted media (which must NOT false-positive).
 //!
 //! [BDE format]: https://github.com/libyal/libbde/blob/main/documentation/BitLocker%20Drive%20Encryption%20(BDE)%20format.asciidoc
 
 use crate::{Attribute, Claim, DeviceKey, HistorySource, Provenance, SourceKind, Value};
+use disk_forensic::{analyse_disk, DiskReport};
 use mbr_partition_forensic::DetectedFs;
 use std::io::{Read, Seek, SeekFrom};
 
@@ -116,17 +116,20 @@ pub fn parse_boot_sectors(image: &[u8]) -> Option<DeviceImage> {
 /// Decode a device image's boot sectors from any seekable reader (a raw slice cursor or an
 /// [`ewf::EwfReader`] over an E01), sized by `disk_size`.
 ///
-/// Partition parsing and per-partition filesystem detection come from
-/// [`mbr_partition_forensic`]; on top of its partition list this reads, per partition, the
-/// FAT `BS_VolID` (for the `EMDMgmt`/`.lnk` volume-serial join) and the BitLocker / LUKS /
-/// unrecognized-filesystem state. `None` when no MBR/GPT scheme is present — a filesystem
-/// VBR, an Apple Partition Map, or any non-disk input.
+/// Partition-scheme detection and per-partition filesystem detection come from
+/// [`disk_forensic::analyse_disk`]; on top of its partition list this reads, per partition,
+/// the FAT `BS_VolID` (for the `EMDMgmt`/`.lnk` volume-serial join) and the BitLocker /
+/// LUKS / unrecognized-filesystem state. `None` when no MBR/GPT scheme is present (a
+/// non-disk input) or an Apple Partition Map (no Windows USB-attribution value).
 pub fn analyse_device_image<R: Read + Seek>(reader: &mut R, disk_size: u64) -> Option<DeviceImage> {
-    // `mbr_partition_forensic::analyse` parses an MBR *and*, when the protective-MBR + GPT
-    // header are present, the GPT (surfaced in `mbr.gpt`), so a GPT disk is recognized as GPT
-    // rather than mis-walked as MBR partitions. It errors on anything that is neither an MBR
-    // nor a GPT disk (a filesystem VBR, an APM disk, random bytes) → `None`.
-    let mbr = mbr_partition_forensic::analyse(reader, disk_size).ok()?;
+    // disk-forensic owns scheme dispatch: a GPT protective MBR is parsed as GPT (partitions
+    // from the GPT entries), never mis-walked as MBR partitions. `Gpt` still carries the
+    // protective-MBR analysis (disk signature + partition list); `Apm` carries none.
+    let report = analyse_disk(reader, disk_size).ok()?;
+    let mbr = match &report {
+        DiskReport::Mbr(m) | DiskReport::Gpt(m) => m,
+        DiskReport::Apm(_) => return None,
+    };
     // Partition byte-offsets from whichever table is authoritative for the scheme: for a GPT
     // disk `mbr.partitions` holds only the protective `0xEE` entry, so the real partitions
     // come from the GPT entry array (used entries only); otherwise the MBR partition table.
@@ -147,8 +150,8 @@ pub fn analyse_device_image<R: Read + Seek>(reader: &mut R, disk_size: u64) -> O
         let Some(vbr) = read_region(reader, offset, FS_PROBE_BYTES) else {
             continue; // the partition's VBR is beyond the image (a truncated capture).
         };
-        // Detect the filesystem with the authoritative signature detector, so MBR and GPT
-        // partitions are classified identically.
+        // Detect the filesystem with the authoritative signature detector (the same one
+        // disk-forensic uses), so MBR and GPT partitions are classified identically.
         let fs = mbr_partition_forensic::signature::detect(&vbr);
         if let Some(kind) = classify_encryption(&vbr, fs) {
             if encryption.is_none_or(|cur| kind.rank() > cur.rank()) {
@@ -543,7 +546,7 @@ mod tests {
         assert_eq!(claims[0].value, Value::Text("BitLocker".to_string()));
     }
 
-    // ---- fixtures parseable by the authoritative mbr-partition-forensic parser ----
+    // ---- fixtures parseable by the authoritative disk-forensic parser ----
 
     /// A classic-MBR disk holding one partition (`ptype`, starting at `start_lba`) whose
     /// 512-byte VBR is `vbr`. Sized to contain the VBR plus slack for FS detection.
@@ -595,8 +598,8 @@ mod tests {
 
     #[test]
     fn an_apple_partition_map_yields_no_device_image() {
-        // An APM disk (Apple partitioning, `ER` DDR + `PM` map entry) is neither MBR nor GPT,
-        // so the parser rejects it and it is not turned into a device image.
+        // An APM disk (Apple partitioning, `ER` DDR + `PM` map entry) carries no Windows
+        // USB-attribution value, so it is not turned into a device image.
         let bs = 512usize;
         let mut d = vec![0u8; bs * 2];
         d[0..2].copy_from_slice(b"ER"); // Driver Descriptor Map signature
@@ -609,8 +612,7 @@ mod tests {
         assert_eq!(parse_boot_sectors(&d), None);
     }
 
-    // ---- GPT fixture: a spec-valid in-memory GPT (protective MBR + primary/backup headers
-    //      + entry array), built with the authoritative gpt-partition-forensic crc32 ----
+    // ---- GPT fixture: same in-memory recipe disk-forensic's own dispatch tests use ----
 
     fn guid_bytes(s: &str) -> [u8; 16] {
         let g: Vec<&str> = s.split('-').collect();
