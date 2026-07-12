@@ -31,7 +31,7 @@ exclude = [
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 lnk-core = "0.4"
-forensicnomicon = "1.2"
+forensicnomicon = "1.6"
 # Device-connection domain reader: setupapi.dev.log, SYSTEM-hive Enum device keys
 # (+ MountedDevices drive-letter join), and Linux kernel logs, each decoded to
 # DeviceConnection records.
