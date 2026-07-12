@@ -7,16 +7,32 @@
 //! `MountedDevices` MBR record (→ drive letter, volume GUID), and the FAT volume serial
 //! matches an `EMDMgmt`/`.lnk` volume serial (→ label, files opened). This closes the loop
 //! that host artifacts alone cannot — attributing a *physical device in evidence* to what
-//! it did on the machine. A pure decode of the boot-sector bytes; no filesystem walk.
+//! it did on the machine.
 //!
-//! It also flags **volume encryption** from the boot sector: a BitLocker / BitLocker To Go
-//! volume replaces the VBR OEM identifier (offset 3) with the documented `-FVE-FS-`
-//! signature (Windows Vista `EB 52 90`, 7/8 `EB 58 90`, then `2D 46 56 45 2D 46 53 2D`; see
-//! the [Forensics Wiki BitLocker page](https://forensics.wiki/bitlocker_disk_encryption/)).
-//! Detection is a spec-defined rule; it is validated against a signature-carrying fixture
-//! and against real unencrypted media (which must NOT false-positive).
+//! Partition-scheme dispatch (MBR / GPT / APM) and filesystem-signature detection are
+//! delegated to the [`disk_forensic`] crate, which is tested against real disk corpora
+//! covering every partition-table + filesystem combination — so this source never re-parses
+//! a partition table by hand (a GPT protective MBR is recognized as GPT, not mis-walked as
+//! MBR partitions). On top of that partition list this source reads the two USB-attribution
+//! values `disk-forensic` does not surface: each partition's FAT `BS_VolID`, and BitLocker.
+//!
+//! **Volume encryption.** A **fixed-drive** BitLocker volume replaces the VBR OEM identifier
+//! (offset 3) with the documented `-FVE-FS-` signature (Windows Vista `EB 52 90`, 7-10
+//! `EB 58 90`). **BitLocker To Go** on removable media — the case that matters most here —
+//! instead presents a *real* FAT/exFAT discovery volume and is identified only by the
+//! BitLocker identifier GUID `4967D63B-2E29-4AD8-8399-F6A339E3D001` carried in the volume
+//! header (libbde [BDE format], volume-header tables). Detection scans the volume header for
+//! that GUID, so it catches every BitLocker layout version regardless of the exact offset. A
+//! [`disk_forensic`]-reported LUKS or unrecognized filesystem is surfaced likewise.
+//! Detection is a spec-defined rule, validated against spec-faithful volume headers and
+//! against real unencrypted media (which must NOT false-positive).
+//!
+//! [BDE format]: https://github.com/libyal/libbde/blob/main/documentation/BitLocker%20Drive%20Encryption%20(BDE)%20format.asciidoc
 
 use crate::{Attribute, Claim, DeviceKey, HistorySource, Provenance, SourceKind, Value};
+use disk_forensic::{analyse_disk, DiskReport};
+use mbr_partition_forensic::DetectedFs;
+use std::io::{Read, Seek, SeekFrom};
 
 /// A detected volume-encryption / inaccessible-contents state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,70 +105,116 @@ pub struct DeviceImage {
     pub mbr: [u8; 512],
 }
 
-/// Decode a raw disk image's boot sectors. Requires a valid MBR (the `0x55AA` boot
-/// signature at offset `0x1FE`); reads the disk signature, then walks the MBR partition
-/// table for the first FAT partition's `BS_VolID` and for an encryption signature.
-/// `None` for a non-MBR image.
+/// Decode a raw disk image's boot sectors from an in-memory slice — the convenience entry
+/// for a fully-read image (and the fuzz target). Wraps the slice in a cursor and defers to
+/// [`analyse_device_image`]. `None` when the image carries no MBR/GPT partition scheme.
 #[must_use]
 pub fn parse_boot_sectors(image: &[u8]) -> Option<DeviceImage> {
-    // Require a full 512-byte MBR sector; the disk signature and the four 16-byte partition
-    // entries (`0x1BE..0x1FE`) then all lie safely within it.
-    let mbr = image.get(..512)?;
-    if mbr[0x1FE..0x200] != [0x55, 0xAA] {
-        return None;
-    }
-    let disk_signature = u32::from_le_bytes([mbr[0x1B8], mbr[0x1B9], mbr[0x1BA], mbr[0x1BB]]);
+    analyse_device_image(&mut std::io::Cursor::new(image), image.len() as u64)
+}
+
+/// Decode a device image's boot sectors from any seekable reader (a raw slice cursor or an
+/// [`ewf::EwfReader`] over an E01), sized by `disk_size`.
+///
+/// Partition-scheme detection and per-partition filesystem detection come from
+/// [`disk_forensic::analyse_disk`]; on top of its partition list this reads, per partition,
+/// the FAT `BS_VolID` (for the `EMDMgmt`/`.lnk` volume-serial join) and the BitLocker /
+/// LUKS / unrecognized-filesystem state. `None` when no MBR/GPT scheme is present (a
+/// non-disk input) or an Apple Partition Map (no Windows USB-attribution value).
+pub fn analyse_device_image<R: Read + Seek>(reader: &mut R, disk_size: u64) -> Option<DeviceImage> {
+    // disk-forensic owns scheme dispatch: a GPT protective MBR is parsed as GPT (partitions
+    // from the GPT entries), never mis-walked as MBR partitions. `Gpt` still carries the
+    // protective-MBR analysis (disk signature + partition list); `Apm` carries none.
+    let report = analyse_disk(reader, disk_size).ok()?;
+    let mbr = match &report {
+        DiskReport::Mbr(m) | DiskReport::Gpt(m) => m,
+        DiskReport::Apm(_) => return None,
+    };
+    // Partition byte-offsets from whichever table is authoritative for the scheme: for a GPT
+    // disk `mbr.partitions` holds only the protective `0xEE` entry, so the real partitions
+    // come from the GPT entry array (used entries only); otherwise the MBR partition table.
+    let offsets: Vec<u64> = match &mbr.gpt {
+        Some(g) => g
+            .partitions
+            .iter()
+            .filter(|e| e.is_used())
+            .map(|e| e.first_lba * g.sector_size)
+            .collect(),
+        None => mbr.partitions.iter().map(|p| p.byte_offset).collect(),
+    };
+    let disk_signature = mbr.disk_serial;
+    let mbr_bytes: [u8; 512] = read_region(reader, 0, 512)?.try_into().ok()?;
     let mut fat_volume_serial = None;
-    let mut encryption = None;
-    for entry in mbr[0x1BE..0x1FE].chunks_exact(16) {
-        let ptype = entry[4];
-        if ptype == 0 {
-            continue; // an empty partition slot.
-        }
-        let start_lba = u32::from_le_bytes([entry[8], entry[9], entry[10], entry[11]]) as usize;
-        let Some(vbr) = image.get(start_lba * 512..start_lba * 512 + 512) else {
-            continue; // the partition's VBR is beyond the image.
+    let mut encryption: Option<EncryptionKind> = None;
+    for offset in offsets {
+        let Some(vbr) = read_region(reader, offset, FS_PROBE_BYTES) else {
+            continue; // the partition's VBR is beyond the image (a truncated capture).
         };
-        // BitLocker wins (a definite signature); else, if this partition's VBR matches no
-        // known filesystem, flag it as an unrecognized/possibly-encrypted volume — but only
-        // record that when nothing definite was found, and never override BitLocker.
-        if let Some(kind) = detect_encryption(vbr) {
-            encryption = Some(kind);
-        } else if encryption.is_none() && !is_recognized_filesystem(vbr) {
-            encryption = Some(EncryptionKind::UnrecognizedFilesystem);
+        // Detect the filesystem with the authoritative signature detector (the same one
+        // disk-forensic uses), so MBR and GPT partitions are classified identically.
+        let fs = mbr_partition_forensic::signature::detect(&vbr);
+        if let Some(kind) = classify_encryption(&vbr, fs) {
+            if encryption.is_none_or(|cur| kind.rank() > cur.rank()) {
+                encryption = Some(kind);
+            }
         }
-        if fat_volume_serial.is_none() && FAT_TYPES.contains(&ptype) {
-            fat_volume_serial = Some(fat_bs_volid(vbr));
+        if fat_volume_serial.is_none() && fs == DetectedFs::Fat {
+            fat_volume_serial = Some(fat_bs_volid(&vbr));
         }
     }
-    let mut mbr_copy = [0u8; 512];
-    mbr_copy.copy_from_slice(mbr);
     Some(DeviceImage {
         disk_signature,
         fat_volume_serial,
         encryption,
-        mbr: mbr_copy,
+        mbr: mbr_bytes,
     })
 }
 
-/// Detect volume encryption from a VBR's OEM identifier (offset 3, 8 bytes). BitLocker and
-/// BitLocker To Go replace the filesystem OEM id (`NTFS    ` / `MSDOS5.0`) with `-FVE-FS-`
-/// — the documented FVE signature (see the module reference). `None` for a plain FS.
-fn detect_encryption(vbr: &[u8]) -> Option<EncryptionKind> {
-    (vbr.get(3..11) == Some(b"-FVE-FS-")).then_some(EncryptionKind::BitLocker)
+/// Bytes read from each partition's start for filesystem detection: enough to reach the
+/// deepest magic the detector inspects (Btrfs at 64 KiB), so ext/Btrfs volumes are not
+/// mistaken for unrecognized/encrypted ones. All BitLocker and FAT fields sit in the first
+/// 512 bytes, so the same buffer serves every check.
+const FS_PROBE_BYTES: usize = 0x1_0000 + 0x400;
+
+/// Seek to `offset` and read `len` bytes, zero-padding a short final read to `len`. `None`
+/// when the offset is at/after EOF (nothing readable) or the seek/read errors.
+fn read_region<R: Read + Seek>(reader: &mut R, offset: u64, len: usize) -> Option<Vec<u8>> {
+    reader.seek(SeekFrom::Start(offset)).ok()?;
+    let mut buf = vec![0u8; len];
+    let mut filled = 0;
+    while filled < len {
+        match reader.read(&mut buf[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(_) => return None,
+        }
+    }
+    (filled != 0).then_some(buf)
 }
 
-/// Whether a VBR carries a recognized filesystem signature: NTFS / exFAT at the OEM id
-/// (offset 3), or FAT (`FAT32   ` at `0x52`, or `FAT1`/`FAT2` at `0x36` for FAT12/16). A
-/// VBR matching none of these is unrecognized (see [`EncryptionKind::UnrecognizedFilesystem`]).
-fn is_recognized_filesystem(vbr: &[u8]) -> bool {
-    matches!(vbr.get(3..11), Some(b"NTFS    " | b"EXFAT   "))
-        || vbr.get(0x52..0x5A) == Some(b"FAT32   ")
-        || matches!(vbr.get(0x36..0x39), Some(b"FAT"))
+/// Classify a partition's volume-encryption state from its VBR and detected filesystem.
+/// BitLocker is a spec-defined signature rule; `Luks` / `UnrecognizedFilesystem` follow the
+/// filesystem detector. `None` for a recognized, unencrypted filesystem.
+fn classify_encryption(vbr: &[u8], detected_fs: DetectedFs) -> Option<EncryptionKind> {
+    // Fixed-drive BitLocker: the `-FVE-FS-` OEM identifier at offset 3 (Vista / 7-10).
+    if vbr.get(3..11) == Some(b"-FVE-FS-") {
+        return Some(EncryptionKind::BitLocker);
+    }
+    // BitLocker To Go: a FAT/exFAT discovery volume carrying the identifier GUID. Scanning
+    // the volume header catches every layout version (the GUID sits at offset 160 for fixed,
+    // 424 for To Go) without hard-coding an offset.
+    if vbr
+        .windows(BITLOCKER_GUID.len())
+        .any(|w| w == BITLOCKER_GUID)
+    {
+        return Some(EncryptionKind::BitLockerToGo);
+    }
+    match detected_fs {
+        DetectedFs::Luks => Some(EncryptionKind::Luks),
+        DetectedFs::Unknown => Some(EncryptionKind::UnrecognizedFilesystem),
+        _ => None,
+    }
 }
-
-/// FAT partition type bytes (`FAT12`/`16`/`32`, incl. LBA variants).
-const FAT_TYPES: [u8; 6] = [0x01, 0x04, 0x06, 0x0B, 0x0C, 0x0E];
 
 /// Read a FAT VBR's `BS_VolID`: offset `0x43` when the FS type is `FAT32   ` (at `0x52`),
 /// else `0x27` (FAT12/16). `vbr` is a full 512-byte sector, so both offsets are in range.
@@ -250,38 +312,46 @@ impl HistorySource for DeviceImageSource<'_> {
 mod tests {
     use super::*;
 
-    /// Build a minimal MBR image: disk signature + one FAT32 partition starting at
-    /// `start_lba`, whose VBR carries `bs_volid`. Sized to hold that VBR.
-    fn mbr_with_fat32(disk_sig: u32, start_lba: usize, bs_volid: u32) -> Vec<u8> {
-        let mut v = vec![0u8; start_lba * 512 + 512];
-        v[0x1B8..0x1BC].copy_from_slice(&disk_sig.to_le_bytes());
-        v[0x1FE..0x200].copy_from_slice(&[0x55, 0xAA]);
-        // partition entry 0: type 0x0B (FAT32), start LBA.
-        v[0x1BE + 4] = 0x0B;
-        v[0x1BE + 8..0x1BE + 12].copy_from_slice(&(start_lba as u32).to_le_bytes());
-        // VBR at start_lba: FAT32 marker + BS_VolID.
-        let vbr = start_lba * 512;
-        v[vbr + 0x52..vbr + 0x5A].copy_from_slice(b"FAT32   ");
-        v[vbr + 0x43..vbr + 0x47].copy_from_slice(&bs_volid.to_le_bytes());
-        v
+    /// A FAT32 VBR: `MSDOS5.0` OEM id (offset 3), `FAT32   ` FS signature (0x52), and
+    /// `BS_VolID` (0x43) — how a Windows-formatted FAT32 volume appears.
+    fn fat32_vbr(bs_volid: u32) -> [u8; 512] {
+        let mut vbr = [0u8; 512];
+        vbr[3..11].copy_from_slice(b"MSDOS5.0");
+        vbr[0x52..0x5A].copy_from_slice(b"FAT32   ");
+        vbr[0x43..0x47].copy_from_slice(&bs_volid.to_le_bytes());
+        vbr[510..512].copy_from_slice(&[0x55, 0xAA]);
+        vbr
+    }
+
+    /// A FAT16 VBR: `MSDOS5.0` OEM id, no FAT32 signature, `BS_VolID` at 0x27.
+    fn fat16_vbr(bs_volid: u32) -> [u8; 512] {
+        let mut vbr = [0u8; 512];
+        vbr[3..11].copy_from_slice(b"MSDOS5.0");
+        vbr[0x27..0x2B].copy_from_slice(&bs_volid.to_le_bytes());
+        vbr[510..512].copy_from_slice(&[0x55, 0xAA]);
+        vbr
+    }
+
+    /// An NTFS VBR: `NTFS    ` OEM id at offset 3.
+    fn ntfs_vbr() -> [u8; 512] {
+        let mut vbr = [0u8; 512];
+        vbr[3..11].copy_from_slice(b"NTFS    ");
+        vbr[510..512].copy_from_slice(&[0x55, 0xAA]);
+        vbr
     }
 
     #[test]
     fn parses_mbr_disk_signature_and_fat_volume_serial() {
-        let img = mbr_with_fat32(0xE221_034C, 1, 0xB4D8_5399);
+        let img = mbr_disk(0xE221_034C, 0x0B, 2, &fat32_vbr(0xB4D8_5399));
         let d = parse_boot_sectors(&img).expect("valid MBR");
         assert_eq!(d.disk_signature, 0xE221_034C);
         assert_eq!(d.fat_volume_serial, Some(0xB4D8_5399));
+        assert_eq!(d.encryption, None);
     }
 
     #[test]
     fn a_fat16_partition_reads_bs_volid_at_0x27() {
-        let mut img = vec![0u8; 1024];
-        img[0x1B8..0x1BC].copy_from_slice(&1u32.to_le_bytes());
-        img[0x1FE..0x200].copy_from_slice(&[0x55, 0xAA]);
-        img[0x1BE + 4] = 0x06; // FAT16
-        img[0x1BE + 8..0x1BE + 12].copy_from_slice(&1u32.to_le_bytes());
-        img[512 + 0x27..512 + 0x2B].copy_from_slice(&0x1234_5678u32.to_le_bytes());
+        let img = mbr_disk(1, 0x06, 2, &fat16_vbr(0x1234_5678));
         let d = parse_boot_sectors(&img).expect("valid MBR");
         assert_eq!(d.fat_volume_serial, Some(0x1234_5678));
     }
@@ -293,29 +363,81 @@ mod tests {
     }
 
     #[test]
-    fn a_partition_whose_vbr_is_beyond_the_image_is_skipped() {
-        // A partition pointing past the image (a truncated/carved capture) is skipped, not
-        // panicked on; with no readable VBR the device yields only its disk signature.
-        let mut img = vec![0u8; 512];
-        img[0x1B8..0x1BC].copy_from_slice(&0xCAFE_0000u32.to_le_bytes());
-        img[0x1FE..0x200].copy_from_slice(&[0x55, 0xAA]);
-        img[0x1BE + 4] = 0x0B; // FAT32
-        img[0x1BE + 8..0x1BE + 12].copy_from_slice(&9999u32.to_le_bytes()); // VBR out of range
-        let d = parse_boot_sectors(&img).expect("valid MBR");
-        assert_eq!(d.disk_signature, 0xCAFE_0000);
-        assert_eq!(d.fat_volume_serial, None);
-        assert_eq!(d.encryption, None);
+    fn read_region_returns_none_past_eof_and_zero_pads_a_short_read() {
+        use std::io::Cursor;
+        // A seek past EOF reads nothing → None (a truncated/carved capture is skipped, not
+        // panicked on).
+        assert_eq!(
+            read_region(&mut Cursor::new(vec![0u8; 16]), 4096, 512),
+            None
+        );
+        // A short final read is zero-padded to the requested length and returned.
+        let mut backing = vec![0xAAu8; 512 + 100];
+        backing[512..].fill(0xBB);
+        let s = read_region(&mut Cursor::new(backing), 512, 512)
+            .expect("short read still yields a buffer");
+        assert_eq!(s.len(), 512);
+        assert_eq!(&s[..100], &[0xBBu8; 100]);
+        assert_eq!(&s[100..], &[0u8; 412]); // zero-padded tail
     }
 
     #[test]
-    fn an_mbr_with_no_fat_partition_still_yields_the_disk_signature() {
-        let mut img = vec![0u8; 512];
-        img[0x1B8..0x1BC].copy_from_slice(&0xDEAD_BEEFu32.to_le_bytes());
-        img[0x1FE..0x200].copy_from_slice(&[0x55, 0xAA]);
-        img[0x1BE + 4] = 0x07; // NTFS, not FAT
+    fn read_region_propagates_a_read_error() {
+        // A reader that errors mid-read must surface as None (skip), never a panic.
+        struct FailingReader;
+        impl std::io::Read for FailingReader {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("boom"))
+            }
+        }
+        impl std::io::Seek for FailingReader {
+            fn seek(&mut self, _: std::io::SeekFrom) -> std::io::Result<u64> {
+                Ok(0)
+            }
+        }
+        assert_eq!(read_region(&mut FailingReader, 0, 512), None);
+    }
+
+    #[test]
+    fn the_most_specific_encryption_state_wins_across_partitions() {
+        // Three partitions in ascending specificity — unrecognized filesystem, LUKS, then
+        // BitLocker. Each definite identification outranks the less-specific one already
+        // recorded, so the device surfaces the most definite (BitLocker).
+        let mut img = mbr_disk(0x0AAA_0BBB, 0x07, 2, &[0xABu8; 512]); // p0: unrecognized
+        let mut luks = [0u8; 512];
+        luks[0..6].copy_from_slice(b"LUKS\xba\xbe");
+        for (i, lba, ptype, vbr) in [(1u8, 4u32, 0x83u8, luks), (2, 6, 0x07, bitlocker_vbr())] {
+            let e = 0x1BE + i as usize * 16;
+            img[e + 4] = ptype;
+            img[e + 8..e + 12].copy_from_slice(&lba.to_le_bytes());
+            img[e + 12..e + 16].copy_from_slice(&8u32.to_le_bytes());
+            let off = lba as usize * 512;
+            img[off..off + 512].copy_from_slice(&vbr);
+        }
+        let d = parse_boot_sectors(&img).expect("valid MBR");
+        assert_eq!(d.encryption, Some(EncryptionKind::BitLocker));
+    }
+
+    #[test]
+    fn a_partition_declared_beyond_the_image_is_skipped() {
+        // A valid FAT32 partition plus a second entry whose start LBA lies past the image end
+        // (a truncated capture): the first is read, the out-of-range VBR is skipped.
+        let mut img = mbr_disk(0xCAFE_0001, 0x0B, 2, &fat32_vbr(0xAABB_CCDD));
+        let e = 0x1BE + 16;
+        img[e + 4] = 0x07;
+        img[e + 8..e + 12].copy_from_slice(&9000u32.to_le_bytes()); // far beyond the image
+        img[e + 12..e + 16].copy_from_slice(&8u32.to_le_bytes());
+        let d = parse_boot_sectors(&img).expect("valid MBR");
+        assert_eq!(d.fat_volume_serial, Some(0xAABB_CCDD));
+    }
+
+    #[test]
+    fn an_ntfs_mbr_yields_the_disk_signature_with_no_fat_serial() {
+        let img = mbr_disk(0xDEAD_BEEF, 0x07, 2, &ntfs_vbr());
         let d = parse_boot_sectors(&img).expect("valid MBR");
         assert_eq!(d.disk_signature, 0xDEAD_BEEF);
         assert_eq!(d.fat_volume_serial, None);
+        assert_eq!(d.encryption, None);
     }
 
     #[test]
@@ -339,7 +461,7 @@ mod tests {
 
     #[test]
     fn export_mbr_hex_dumps_the_boot_sector_with_signature_and_ascii() {
-        let img = mbr_with_fat32(0xE221_034C, 1, 0xB4D8_5399);
+        let img = mbr_disk(0xE221_034C, 0x0B, 2, &fat32_vbr(0xB4D8_5399));
         let d = parse_boot_sectors(&img).expect("valid MBR");
         let dump = export_mbr_hex(&d, "rm2.raw");
         assert!(dump.contains("MBR of rm2.raw"));
@@ -365,24 +487,18 @@ mod tests {
         assert!(DeviceImageSource::new(&img, "x").claims().is_empty());
     }
 
-    /// Build a minimal MBR image with one partition whose VBR carries the BitLocker
-    /// `-FVE-FS-` signature at offset 3 (the documented FVE signature).
-    fn mbr_with_bitlocker(disk_sig: u32, start_lba: usize) -> Vec<u8> {
-        let mut v = vec![0u8; start_lba * 512 + 512];
-        v[0x1B8..0x1BC].copy_from_slice(&disk_sig.to_le_bytes());
-        v[0x1FE..0x200].copy_from_slice(&[0x55, 0xAA]);
-        v[0x1BE + 4] = 0x07; // the partition type is NTFS/IFS; the VBR reveals FVE.
-        v[0x1BE + 8..0x1BE + 12].copy_from_slice(&(start_lba as u32).to_le_bytes());
-        let vbr = start_lba * 512;
-        // Win7/8 BitLocker VBR: jump EB 58 90, then the -FVE-FS- OEM id at offset 3.
-        v[vbr..vbr + 3].copy_from_slice(&[0xEB, 0x58, 0x90]);
-        v[vbr + 3..vbr + 11].copy_from_slice(b"-FVE-FS-");
-        v
+    /// A fixed-drive BitLocker VBR: jump `EB 58 90`, then the `-FVE-FS-` OEM id at offset 3.
+    fn bitlocker_vbr() -> [u8; 512] {
+        let mut vbr = [0u8; 512];
+        vbr[0..3].copy_from_slice(&[0xEB, 0x58, 0x90]);
+        vbr[3..11].copy_from_slice(b"-FVE-FS-");
+        vbr[510..512].copy_from_slice(&[0x55, 0xAA]);
+        vbr
     }
 
     #[test]
     fn bitlocker_signature_is_detected_from_the_vbr() {
-        let img = mbr_with_bitlocker(0xABCD_1234, 1);
+        let img = mbr_disk(0xABCD_1234, 0x07, 2, &bitlocker_vbr());
         let d = parse_boot_sectors(&img).expect("valid MBR");
         assert_eq!(d.encryption, Some(EncryptionKind::BitLocker));
         assert_eq!(EncryptionKind::BitLocker.name(), "BitLocker");
@@ -392,41 +508,22 @@ mod tests {
 
     #[test]
     fn plain_filesystem_media_is_not_flagged_as_encrypted() {
-        // A real FAT32 volume ("FAT32   " OEM) must NOT false-positive as encrypted or
-        // unrecognized — it is a recognized filesystem.
-        let img = mbr_with_fat32(1, 1, 42);
+        // A real FAT32 volume must NOT false-positive as encrypted or unrecognized.
+        let img = mbr_disk(1, 0x0B, 2, &fat32_vbr(42));
         assert_eq!(
             parse_boot_sectors(&img).expect("valid MBR").encryption,
             None
         );
-        assert_eq!(detect_encryption(b"NTFS    xxxxxxxx"), None);
-        assert_eq!(detect_encryption(&[0u8; 4]), None);
-    }
-
-    #[test]
-    fn is_recognized_filesystem_accepts_the_known_signatures_only() {
-        let mut ntfs = vec![0u8; 512];
-        ntfs[3..11].copy_from_slice(b"NTFS    ");
-        assert!(is_recognized_filesystem(&ntfs));
-        let mut exfat = vec![0u8; 512];
-        exfat[3..11].copy_from_slice(b"EXFAT   ");
-        assert!(is_recognized_filesystem(&exfat));
-        let mut fat16 = vec![0u8; 512];
-        fat16[0x36..0x39].copy_from_slice(b"FAT");
-        assert!(is_recognized_filesystem(&fat16));
-        // Random / no signature → unrecognized.
-        assert!(!is_recognized_filesystem(&[0xABu8; 512]));
+        // The classifier itself: a plain NTFS VBR and empty bytes are not encryption.
+        assert_eq!(classify_encryption(&ntfs_vbr(), DetectedFs::Ntfs), None);
+        assert_eq!(classify_encryption(&[0u8; 4], DetectedFs::AllZeros), None);
     }
 
     #[test]
     fn an_unrecognized_filesystem_partition_is_flagged_as_possibly_encrypted() {
-        // A partition with a valid MBR entry but a VBR matching no known filesystem
-        // signature (all-random, as a VeraCrypt/TrueCrypt container appears) → flagged.
-        let mut img = vec![0xABu8; 1024];
-        img[0x1B8..0x1BC].copy_from_slice(&7u32.to_le_bytes());
-        img[0x1FE..0x200].copy_from_slice(&[0x55, 0xAA]);
-        img[0x1BE + 4] = 0x07; // a non-empty partition type
-        img[0x1BE + 8..0x1BE + 12].copy_from_slice(&1u32.to_le_bytes());
+        // A partition whose VBR matches no known filesystem (all-random, as a VeraCrypt /
+        // TrueCrypt container appears) → flagged as possibly-encrypted.
+        let img = mbr_disk(7, 0x07, 2, &[0xABu8; 512]);
         let d = parse_boot_sectors(&img).expect("valid MBR");
         assert_eq!(d.encryption, Some(EncryptionKind::UnrecognizedFilesystem));
         assert_eq!(
@@ -497,6 +594,22 @@ mod tests {
         let d = parse_boot_sectors(&img).expect("valid MBR");
         assert_eq!(d.encryption, Some(EncryptionKind::Luks));
         assert_eq!(EncryptionKind::Luks.name(), "LUKS");
+    }
+
+    #[test]
+    fn an_apple_partition_map_yields_no_device_image() {
+        // An APM disk (Apple partitioning, `ER` DDR + `PM` map entry) carries no Windows
+        // USB-attribution value, so it is not turned into a device image.
+        let bs = 512usize;
+        let mut d = vec![0u8; bs * 2];
+        d[0..2].copy_from_slice(b"ER"); // Driver Descriptor Map signature
+        d[2..4].copy_from_slice(&512u16.to_be_bytes()); // block size
+        d[4..8].copy_from_slice(&4u32.to_be_bytes()); // device block count
+        d[bs..bs + 2].copy_from_slice(b"PM"); // partition map entry signature
+        d[bs + 4..bs + 8].copy_from_slice(&1u32.to_be_bytes()); // map entry count
+        d[bs + 8..bs + 12].copy_from_slice(&1u32.to_be_bytes()); // start block
+        d[bs + 12..bs + 16].copy_from_slice(&1u32.to_be_bytes()); // block count
+        assert_eq!(parse_boot_sectors(&d), None);
     }
 
     // ---- GPT fixture: same in-memory recipe disk-forensic's own dispatch tests use ----

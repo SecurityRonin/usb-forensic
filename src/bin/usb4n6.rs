@@ -28,11 +28,11 @@ use peripheral_core::setupapi::parse_setupapi;
 use peripheral_core::volume_info::{parse_volume_info_cache, VolumeLabel};
 use std::process::ExitCode;
 use usb_forensic::{
-    audit, parse_boot_sectors, parse_ipod_plist, parse_system_profiler, parse_unified_log,
-    to_jsonl, AppleDevice, AppleIPodSource, DeviceImage, DeviceImageSource, EmdMgmtSource,
-    HistorySource, JumpListArtifact, JumpListSource, LnkArtifact, LnkSource, MacUnifiedLogSource,
-    MacUsbDevice, MacUsbSource, MountPoints2Source, PartitionDiagSource, PeripheralSource,
-    SourceKind, UsbEnumeration, VolumeCacheSource,
+    analyse_device_image, audit, parse_boot_sectors, parse_ipod_plist, parse_system_profiler,
+    parse_unified_log, to_jsonl, AppleDevice, AppleIPodSource, DeviceImage, DeviceImageSource,
+    EmdMgmtSource, HistorySource, JumpListArtifact, JumpListSource, LnkArtifact, LnkSource,
+    MacUnifiedLogSource, MacUsbDevice, MacUsbSource, MountPoints2Source, PartitionDiagSource,
+    PeripheralSource, SourceKind, UsbEnumeration, VolumeCacheSource,
 };
 use winevt_extract::{partition_diag, PartitionDiagEvent};
 
@@ -134,19 +134,13 @@ fn is_e01(bytes: &[u8]) -> bool {
 }
 
 /// Open an `EnCase` E01 image and decode its boot sectors (built-in image mounting — no
-/// external mounter). Reads a bounded four-mebibyte media prefix (covering the boot record
-/// and a USB stick's first-partition boot sectors, aligned at sector 128 or 2048); a
-/// partition beyond that is skipped by `parse_boot_sectors`. `None` on an invalid image.
+/// external mounter). The E01 reader is seekable, so it is handed straight to
+/// `analyse_device_image`, which seeks to each partition on demand. `None` on an invalid
+/// image.
 fn parse_e01_device_image(path: &str) -> Option<DeviceImage> {
-    use std::io::Read as _;
     let mut reader = ewf::EwfReader::open(path).ok()?;
-    let mut buf = Vec::new();
-    reader
-        .by_ref()
-        .take(4 * 1024 * 1024)
-        .read_to_end(&mut buf)
-        .ok()?;
-    parse_boot_sectors(&buf)
+    let size = reader.total_size();
+    analyse_device_image(&mut reader, size)
 }
 
 /// A property list — a binary `bplist00` or an XML plist (the `com.apple.iPod.plist` form).
