@@ -54,6 +54,11 @@ ewf = "0.4"
 #   lnk-core           recent-file LNK volume-serial join
 #   forensicnomicon    the report vocabulary (Finding / Severity / Category)
 
+[dev-dependencies]
+# crc32::checksum to build spec-valid GPT test fixtures in-memory (the same recipe
+# disk-forensic's own dispatch tests use) — no committed GPT blobs.
+gpt-partition-forensic = "0.6"
+
 [lints]
 workspace = true
 

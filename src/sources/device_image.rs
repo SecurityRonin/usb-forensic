@@ -21,11 +21,21 @@ use crate::{Attribute, Claim, DeviceKey, HistorySource, Provenance, SourceKind, 
 /// A detected volume-encryption / inaccessible-contents state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncryptionKind {
-    /// Microsoft BitLocker / BitLocker To Go — the VBR OEM id is replaced by `-FVE-FS-`.
+    /// Microsoft BitLocker on a **fixed drive** (or an NTFS-on-removable volume): the VBR
+    /// OEM identifier at offset 3 is the documented `-FVE-FS-` signature (Windows Vista
+    /// `EB 52 90` / 7-10 `EB 58 90`; see the module reference).
     BitLocker,
+    /// Microsoft **BitLocker To Go** on removable media (the USB-forensics case): the
+    /// discovery volume presents a normal FAT/exFAT OEM identifier, so it is identified by
+    /// the BitLocker identifier GUID `4967D63B-2E29-4AD8-8399-F6A339E3D001` carried in the
+    /// volume header — not by the `-FVE-FS-` string (libbde BDE format, volume header).
+    BitLockerToGo,
+    /// A LUKS-encrypted volume (`LUKS\xba\xbe` magic) — Linux full-disk encryption on the
+    /// media, surfaced by the filesystem-signature detector.
+    Luks,
     /// A partition whose VBR matches **no known filesystem** signature (not NTFS, FAT,
-    /// exFAT, or BitLocker). Consistent with an on-disk encrypted container (VeraCrypt /
-    /// TrueCrypt, whose volume is indistinguishable from random data and carries no
+    /// exFAT, LUKS, or BitLocker). Consistent with an on-disk encrypted container (VeraCrypt
+    /// / TrueCrypt, whose volume is indistinguishable from random data and carries no
     /// filesystem header) or a wiped/raw volume — the contents are not readable as a
     /// filesystem. Stated as an observation, not a claim that it *is* any specific tool.
     UnrecognizedFilesystem,
@@ -37,12 +47,33 @@ impl EncryptionKind {
     pub const fn name(self) -> &'static str {
         match self {
             Self::BitLocker => "BitLocker",
+            Self::BitLockerToGo => "BitLocker To Go",
+            Self::Luks => "LUKS",
             Self::UnrecognizedFilesystem => {
                 "unrecognized-filesystem (possible encrypted container)"
             }
         }
     }
+
+    /// Specificity rank, so that when several partitions carry different states the most
+    /// definite one is surfaced on the device: a positive BitLocker/LUKS identification
+    /// outranks a heuristic "unrecognized filesystem".
+    const fn rank(self) -> u8 {
+        match self {
+            Self::BitLocker | Self::BitLockerToGo => 3,
+            Self::Luks => 2,
+            Self::UnrecognizedFilesystem => 1,
+        }
+    }
 }
+
+/// The BitLocker identifier GUID `4967D63B-2E29-4AD8-8399-F6A339E3D001`, in the mixed-endian
+/// byte order it is stored in a volume header (Data1-3 little-endian, Data4 big-endian). Its
+/// presence in a partition's volume header marks a BitLocker / BitLocker To Go volume even
+/// when the OEM identifier at offset 3 is an ordinary FAT/exFAT string (libbde BDE format).
+pub(crate) const BITLOCKER_GUID: [u8; 16] = [
+    0x3B, 0xD6, 0x67, 0x49, 0x29, 0x2E, 0xD8, 0x4A, 0x83, 0x99, 0xF6, 0xA3, 0x39, 0xE3, 0xD0, 0x01,
+];
 
 /// A physical device's boot-sector identity, decoded from its raw disk image.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -416,5 +447,141 @@ mod tests {
         assert_eq!(claims.len(), 1);
         assert_eq!(claims[0].attribute, Attribute::Encryption);
         assert_eq!(claims[0].value, Value::Text("BitLocker".to_string()));
+    }
+
+    // ---- fixtures parseable by the authoritative disk-forensic parser ----
+
+    /// A classic-MBR disk holding one partition (`ptype`, starting at `start_lba`) whose
+    /// 512-byte VBR is `vbr`. Sized to contain the VBR plus slack for FS detection.
+    fn mbr_disk(disk_sig: u32, ptype: u8, start_lba: u32, vbr: &[u8]) -> Vec<u8> {
+        let sectors = start_lba as usize + 16;
+        let mut v = vec![0u8; sectors * 512];
+        v[0x1B8..0x1BC].copy_from_slice(&disk_sig.to_le_bytes());
+        v[0x1FE..0x200].copy_from_slice(&[0x55, 0xAA]);
+        v[0x1BE + 4] = ptype;
+        v[0x1BE + 8..0x1BE + 12].copy_from_slice(&start_lba.to_le_bytes());
+        v[0x1BE + 12..0x1BE + 16].copy_from_slice(&8u32.to_le_bytes()); // sector count
+        let off = start_lba as usize * 512;
+        v[off..off + vbr.len()].copy_from_slice(vbr);
+        v
+    }
+
+    /// A BitLocker To Go discovery-volume VBR: a real FAT32 boot record (`MSWIN4.1` OEM id,
+    /// `FAT32   ` FS signature) carrying the BitLocker identifier GUID — how removable-media
+    /// BitLocker appears (libbde BDE format, "BitLocker To Go" volume header).
+    fn to_go_vbr() -> [u8; 512] {
+        let mut vbr = [0u8; 512];
+        vbr[0..3].copy_from_slice(&[0xEB, 0x58, 0x90]);
+        vbr[3..11].copy_from_slice(b"MSWIN4.1");
+        vbr[0x52..0x5A].copy_from_slice(b"FAT32   ");
+        vbr[424..440].copy_from_slice(&BITLOCKER_GUID); // identifier GUID (To Go offset)
+        vbr[510..512].copy_from_slice(&[0x55, 0xAA]);
+        vbr
+    }
+
+    #[test]
+    fn bitlocker_to_go_detected_via_identifier_guid_on_a_fat_discovery_volume() {
+        // The removable-media case: the volume looks like FAT32 to a generic FS detector, so
+        // detection MUST key off the BitLocker identifier GUID, not the `-FVE-FS-` string.
+        let img = mbr_disk(0x1111_2222, 0x0B, 2, &to_go_vbr());
+        let d = parse_boot_sectors(&img).expect("valid MBR");
+        assert_eq!(d.encryption, Some(EncryptionKind::BitLockerToGo));
+        assert_eq!(EncryptionKind::BitLockerToGo.name(), "BitLocker To Go");
+    }
+
+    #[test]
+    fn a_luks_partition_is_flagged_as_luks_encryption() {
+        let mut vbr = [0u8; 512];
+        vbr[0..6].copy_from_slice(b"LUKS\xba\xbe"); // LUKS magic at offset 0
+        let img = mbr_disk(0x3333_4444, 0x83, 2, &vbr);
+        let d = parse_boot_sectors(&img).expect("valid MBR");
+        assert_eq!(d.encryption, Some(EncryptionKind::Luks));
+        assert_eq!(EncryptionKind::Luks.name(), "LUKS");
+    }
+
+    // ---- GPT fixture: same in-memory recipe disk-forensic's own dispatch tests use ----
+
+    fn guid_bytes(s: &str) -> [u8; 16] {
+        let g: Vec<&str> = s.split('-').collect();
+        let mut b = [0u8; 16];
+        b[0..4].copy_from_slice(&u32::from_str_radix(g[0], 16).unwrap().to_le_bytes());
+        b[4..6].copy_from_slice(&u16::from_str_radix(g[1], 16).unwrap().to_le_bytes());
+        b[6..8].copy_from_slice(&u16::from_str_radix(g[2], 16).unwrap().to_le_bytes());
+        b[8..10].copy_from_slice(&u16::from_str_radix(g[3], 16).unwrap().to_be_bytes());
+        b[10..16].copy_from_slice(&u64::from_str_radix(g[4], 16).unwrap().to_be_bytes()[2..8]);
+        b
+    }
+
+    fn gpt_entry(type_guid: &str, first: u64, last: u64) -> [u8; 128] {
+        let mut e = [0u8; 128];
+        e[0..16].copy_from_slice(&guid_bytes(type_guid));
+        e[16..32].copy_from_slice(&guid_bytes("00000000-0000-0000-0000-000000000001"));
+        e[32..40].copy_from_slice(&first.to_le_bytes());
+        e[40..48].copy_from_slice(&last.to_le_bytes());
+        e
+    }
+
+    fn gpt_header(my_lba: u64, alt_lba: u64, entry_lba: u64, array_crc: u32) -> [u8; 512] {
+        let mut s = [0u8; 512];
+        s[0..8].copy_from_slice(b"EFI PART");
+        s[8..12].copy_from_slice(&0x0001_0000u32.to_le_bytes());
+        s[12..16].copy_from_slice(&92u32.to_le_bytes());
+        s[24..32].copy_from_slice(&my_lba.to_le_bytes());
+        s[32..40].copy_from_slice(&alt_lba.to_le_bytes());
+        s[40..48].copy_from_slice(&3u64.to_le_bytes()); // first usable
+        s[48..56].copy_from_slice(&61u64.to_le_bytes()); // last usable
+        s[56..72].copy_from_slice(&guid_bytes("12345678-1234-5678-1234-567812345678"));
+        s[72..80].copy_from_slice(&entry_lba.to_le_bytes());
+        s[80..84].copy_from_slice(&4u32.to_le_bytes()); // num entries
+        s[84..88].copy_from_slice(&128u32.to_le_bytes()); // entry size
+        s[88..92].copy_from_slice(&array_crc.to_le_bytes());
+        let crc = gpt_partition_forensic::crc32::checksum(&s[..92]);
+        s[16..20].copy_from_slice(&crc.to_le_bytes());
+        s
+    }
+
+    /// A spec-valid GPT disk (protective MBR + primary/backup headers + entry array) with one
+    /// Microsoft Basic Data partition whose VBR is FAT32 (serial `bs_volid`).
+    fn build_gpt(bs_volid: u32) -> Vec<u8> {
+        const SECTOR: usize = 512;
+        const SECTORS: usize = 64;
+        let mut disk = vec![0u8; SECTOR * SECTORS];
+        disk[450] = 0xEE; // protective-MBR partition type
+        disk[454..458].copy_from_slice(&1u32.to_le_bytes());
+        disk[458..462].copy_from_slice(&((SECTORS - 1) as u32).to_le_bytes());
+        disk[510..512].copy_from_slice(&[0x55, 0xAA]);
+
+        let mut array = vec![0u8; 4 * 128];
+        array[0..128].copy_from_slice(&gpt_entry(
+            "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7", // Microsoft Basic Data
+            3,
+            30,
+        ));
+        let array_crc = gpt_partition_forensic::crc32::checksum(&array);
+        disk[SECTOR..SECTOR + 512].copy_from_slice(&gpt_header(1, 63, 2, array_crc));
+        disk[2 * SECTOR..2 * SECTOR + array.len()].copy_from_slice(&array);
+        disk[62 * SECTOR..62 * SECTOR + array.len()].copy_from_slice(&array);
+        disk[63 * SECTOR..63 * SECTOR + 512].copy_from_slice(&gpt_header(63, 1, 62, array_crc));
+        // FAT32 VBR at the partition's first LBA (3).
+        let vbr = 3 * SECTOR;
+        disk[vbr + 3..vbr + 11].copy_from_slice(b"MSDOS5.0");
+        disk[vbr + 0x52..vbr + 0x5A].copy_from_slice(b"FAT32   ");
+        disk[vbr + 0x43..vbr + 0x47].copy_from_slice(&bs_volid.to_le_bytes());
+        disk[vbr + 510..vbr + 512].copy_from_slice(&[0x55, 0xAA]);
+        disk
+    }
+
+    #[test]
+    fn a_gpt_disk_is_not_false_flagged_and_its_fat_partition_is_read() {
+        // Regression: a GPT protective MBR (type 0xEE, "EFI PART" at LBA 1) must be parsed as
+        // GPT — never walked as MBR partitions, which mis-read the GPT header as an
+        // unrecognized-filesystem VBR. Its real FAT partition's serial is still recovered.
+        let img = build_gpt(0xB4D8_5399);
+        let d = parse_boot_sectors(&img).expect("valid GPT");
+        assert_eq!(
+            d.encryption, None,
+            "GPT header must not be flagged as encrypted"
+        );
+        assert_eq!(d.fat_volume_serial, Some(0xB4D8_5399));
     }
 }
