@@ -1,20 +1,26 @@
 # usb-forensic
 
 [![CI](https://github.com/SecurityRonin/usb-forensic/actions/workflows/ci.yml/badge.svg)](https://github.com/SecurityRonin/usb-forensic/actions)
-[![Rust 1.81+](https://img.shields.io/badge/rust-1.81%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust 1.96+](https://img.shields.io/badge/rust-1.96%2B-orange.svg)](https://www.rust-lang.org)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/sponsor-h4x0r-ea4aaa?logo=github-sponsors)](https://github.com/sponsors/h4x0r)
 
 **The first USB-history correlation engine built for pipelines and courtrooms rather than a viewer window — USB Detective-grade Windows artifact depth, running headless on any OS at fleet scale, with every timestamp traceable to its raw bytes and every conclusion re-derivable by anyone, including the other side's expert.**
 
-> **Status: working alpha.** The correlation core, two sources (`setupapi.dev.log` via
-> `peripheral-core`, `.lnk` via `lnk-core`), `forensicnomicon` findings output, and the
-> `usb4n6` CLI all run and are tested. The registry decoder (USBSTOR/SCSI/USB) is
-> [validated and in review](https://github.com/SecurityRonin/peripheral-forensic/pull/1);
-> event-log, macOS/Linux, and court-report output are next (`docs/roadmap.md`,
-> `docs/feature-parity.md`). `Cargo.toml` keeps `publish = false` until the source set
-> and validation are release-ready; crates.io / docs.rs / coverage badges join then.
+> **Status: pre-release.** The correlation core and **13 source adapters** run and are
+> tested — every Windows registry source (`Enum\{USBSTOR,SCSI,USB}`, `MountedDevices`,
+> `VolumeInfoCache`, `MountPoints2`, `EMDMgmt`), `setupapi.dev.log`, the Partition/Diagnostic
+> and Kernel-PnP event logs, device-image boot sectors (MBR/GPT via `disk-forensic`; FAT
+> serial + BitLocker/BitLocker-To-Go/LUKS), LNK, jump lists, Linux `syslog`, and macOS
+> (iPod plist, `system_profiler`, unified log). Output is JSONL, `--table`, `--timeline`,
+> `--files`, `--report`, `--docx`, and `--pdf`; six `forensicnomicon` finding types.
+> Correctness is Tier-1 validated against independent oracles on real corpora (NIST CFReDS,
+> Stolen Szechuan Sauce, real macOS devices) — see [`docs/validation.md`](docs/validation.md).
+> The parity matrix stands at **45 done / 13 remaining** ([`docs/feature-parity.md`](docs/feature-parity.md)),
+> the remaining items mostly blocked on a specific corpus or oracle. `Cargo.toml` keeps
+> `publish = false` until the differential (USB Detective / RegRipper) corpus lands;
+> crates.io / docs.rs / coverage badges join then.
 
 ## Run it
 
@@ -52,16 +58,18 @@ the evidence is spread across:
 ## Where it sits in the fleet
 
 An **artifact-domain analyzer**, a layer above the data-source parsers — it **consumes**
-them rather than reimplement them, and emits `forensicnomicon::report::Finding`s that
-Issen renders alongside every other analyzer.
+them rather than reimplement them (see [ADR 0002](docs/decisions/0002-delegate-parsing-to-fleet-crates.md)),
+and emits `forensicnomicon::report::Finding`s that Issen renders alongside every other analyzer.
+It correlates USB device history and scores cross-source timestamp consistency on top of:
 
-```
-usb-forensic  ── correlates USB device history, scores cross-source timestamp consistency
-   ├── consumes winreg-artifacts  ── USBSTOR / MountedDevices / WPDBUSENUM / Amcache / …
-   ├── consumes peripheral-core   ── setupapi.dev.log device-install events
-   ├── consumes winevt-forensic   ── Partition/Diagnostic event log (volume serials)
-   └── consumes lnk-core          ── recent-file LNK volume-serial join
-```
+- **`peripheral-core`** — `setupapi.dev.log`, the SYSTEM-hive `Enum\{USBSTOR,SCSI,USB}` +
+  `MountedDevices` device keys, and Linux kernel-log USB events
+- **`winevt-extract`** — the Partition/Diagnostic and Kernel-PnP Configuration event logs
+- **`disk-forensic`** — device-image partition/filesystem parsing (MBR/GPT), with `ewf` for
+  E01 images
+- **`lnk-core`** — recent-file LNK and jump-list volume-serial joins
+- **`winreg-core`** — opens SOFTWARE / NTUSER hives for the `VolumeInfoCache`, `MountPoints2`,
+  and `EMDMgmt` readers; **`plist`** for the macOS `com.apple.iPod.plist`
 
 It is the deep, USB-specific sibling of
 [`useract-forensic`](https://github.com/SecurityRonin/useract-forensic): that crate
@@ -131,11 +139,14 @@ case, converting the incumbent's moat into the test suite.
 ## Trust, but verify
 
 `#![forbid(unsafe_code)]`, panic-free (the workspace denies `unwrap`/`expect` in
-production), and gated on 100% library line coverage. The correlation logic will be
-validated **differentially against an independent oracle** (USB Detective Community
-edition, RegRipper) on real disk images — see
-[`docs/validation.md`](docs/validation.md). Findings are **observations**, never
-verdicts: "consistent with …", the examiner draws the conclusions.
+production), raw parsers fuzzed with cargo-fuzz, and gated on 100% library line coverage.
+Correctness is proven against **independent oracles on real data** — NIST CFReDS
+(device-image), Stolen Szechuan Sauce (registry hive + Kernel-PnP event log, via regipy /
+python-evtx), and real macOS devices — each labelled by evidence tier in
+[`docs/validation.md`](docs/validation.md). A broader **differential** against USB Detective
+Community edition and RegRipper is the remaining validation step before release. Findings are
+**observations, never verdicts** — "consistent with …", with the epistemic limit stated as a
+property of the evidence.
 
 ---
 
