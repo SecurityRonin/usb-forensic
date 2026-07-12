@@ -38,8 +38,59 @@ pub fn kernel_pnp_events<I>(records: I) -> Vec<KernelPnpEvent>
 where
     I: IntoIterator<Item = serde_json::Value>,
 {
-    let _ = records; // RED stub
-    Vec::new()
+    records
+        .into_iter()
+        .filter_map(|r| kernel_pnp_event(&r))
+        .collect()
+}
+
+/// Decode one `evtx` record; `None` unless it is a USB Kernel-PnP configuration event.
+fn kernel_pnp_event(record: &serde_json::Value) -> Option<KernelPnpEvent> {
+    let system = record.pointer("/Event/System")?;
+    if system
+        .pointer("/Provider/#attributes/Name")
+        .and_then(serde_json::Value::as_str)
+        != Some("Microsoft-Windows-Kernel-PnP")
+    {
+        return None;
+    }
+    let event_id = event_id(system)?;
+    if !CONFIG_EVENT_IDS.contains(&event_id) {
+        return None;
+    }
+    // `flatten_event_data` normalizes both EVTX EventData serialization shapes into a flat
+    // field map — reused from winevt-extract, the crate that owns the evtx field decoding.
+    let fields = winevt_extract::flatten_event_data(record);
+    let device_instance_id = fields.get("DeviceInstanceId")?.clone();
+    if !is_usb_instance(&device_instance_id) {
+        return None;
+    }
+    let timestamp = system
+        .pointer("/TimeCreated/#attributes/SystemTime")?
+        .as_str()?
+        .to_string();
+    let driver_name = fields.get("DriverName").filter(|s| !s.is_empty()).cloned();
+    Some(KernelPnpEvent {
+        timestamp,
+        event_id,
+        device_instance_id,
+        driver_name,
+    })
+}
+
+/// Read `System/EventID`, tolerating both the bare-number and `{"#text": N, …}` shapes.
+fn event_id(system: &serde_json::Value) -> Option<u32> {
+    let raw = system.get("EventID")?;
+    let n = raw
+        .as_u64()
+        .or_else(|| raw.get("#text").and_then(serde_json::Value::as_u64))?;
+    u32::try_from(n).ok()
+}
+
+/// A `USB\` / `USBSTOR\` device instance id (a peripheral / mass-storage device), as opposed
+/// to an internal `ACPI\` / `PCI\` / root-hub device that carries no removable-media identity.
+fn is_usb_instance(id: &str) -> bool {
+    id.starts_with("USB\\") || id.starts_with("USBSTOR\\")
 }
 
 /// A [`HistorySource`] over decoded USB Kernel-PnP configuration events.
@@ -57,7 +108,34 @@ impl<'a> KernelPnpSource<'a> {
 
 impl HistorySource for KernelPnpSource<'_> {
     fn claims(&self) -> Vec<Claim> {
-        Vec::new() // RED stub
+        let mut out = Vec::new();
+        for event in self.events {
+            // Key by the instance serial — the last '\'-separated component of the device
+            // instance id — identical to how the registry / setupapi sources key, so a
+            // Kernel-PnP event corroborates the registry record of the same device.
+            let start = event.device_instance_id.rfind('\\').map_or(0, |i| i + 1);
+            let serial = &event.device_instance_id[start..];
+            if serial.is_empty() {
+                continue; // no instance serial to key on
+            }
+            // A malformed timestamp is dropped, never turned into a bogus epoch.
+            let Ok(when) = event.timestamp.parse::<jiff::Timestamp>() else {
+                continue;
+            };
+            out.push(Claim {
+                device: DeviceKey(serial.to_string()),
+                attribute: Attribute::LastConnected,
+                value: Value::Timestamp(when.as_second()),
+                provenance: Provenance {
+                    source: SourceKind::KernelPnp,
+                    locator: format!(
+                        "Microsoft-Windows-Kernel-PnP/Configuration#{} {}",
+                        event.event_id, event.device_instance_id
+                    ),
+                },
+            });
+        }
+        out
     }
 }
 
