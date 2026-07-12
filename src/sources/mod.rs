@@ -5,6 +5,7 @@ pub mod apple_ipod;
 pub mod device_image;
 pub mod emdmgmt;
 pub mod jumplist;
+pub mod kernel_pnp;
 pub mod lnk;
 pub mod macos_unified_log;
 pub mod macos_usb;
