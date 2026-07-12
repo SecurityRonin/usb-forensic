@@ -31,6 +31,7 @@
 
 use crate::{Attribute, Claim, DeviceKey, HistorySource, Provenance, SourceKind, Value};
 use disk_forensic::{analyse_disk, DiskReport};
+use forensicnomicon::volume_serial::VolumeSerial;
 use mbr_partition_forensic::DetectedFs;
 use std::io::{Read, Seek, SeekFrom};
 
@@ -125,39 +126,43 @@ pub fn analyse_device_image<R: Read + Seek>(reader: &mut R, disk_size: u64) -> O
     // Partition byte-offsets from whichever table is authoritative for the scheme: for a GPT
     // disk `mbr.partitions` holds only the protective `0xEE` entry, so the real partitions
     // come from the GPT entry array (used entries only); otherwise the MBR partition table.
-    let offsets: Vec<u64> = match &mbr.gpt {
-        Some(g) => g
-            .partitions
-            .iter()
-            .filter(|e| e.is_used())
-            .map(|e| e.first_lba * g.sector_size)
-            .collect(),
-        None => mbr.partitions.iter().map(|p| p.byte_offset).collect(),
-    };
     let disk_signature = mbr.disk_serial;
     let mbr_bytes: [u8; 512] = read_region(reader, 0, 512)?.try_into().ok()?;
     let mut fat_volume_serial = None;
     let mut encryption: Option<EncryptionKind> = None;
-    for offset in offsets {
-        let Some(vbr) = read_region(reader, offset, FS_PROBE_BYTES) else {
-            continue; // the partition's VBR is beyond the image (a truncated capture).
-        };
-        // Detect the filesystem with the authoritative signature detector (the same one
-        // disk-forensic uses), so MBR and GPT partitions are classified identically.
-        let fs = mbr_partition_forensic::signature::detect(&vbr);
-        if let Some(kind) = classify_encryption(&vbr, fs) {
+    let mut record = |serial: Option<VolumeSerial>, enc: Option<EncryptionKind>| {
+        if let Some(kind) = enc {
             if encryption.is_none_or(|cur| kind.rank() > cur.rank()) {
                 encryption = Some(kind);
             }
         }
-        // The 4-byte FAT/exFAT volume serial (the `EMDMgmt`/`.lnk` join key) — the field
-        // offsets are volume-serial knowledge owned by forensicnomicon (ADR 0003). An 8-byte
-        // NTFS serial (`Long`) is not the FAT join key, so it is not recorded here.
         if fat_volume_serial.is_none() {
-            if let Some(forensicnomicon::volume_serial::VolumeSerial::Short(v)) =
-                forensicnomicon::volume_serial::volume_serial(&vbr)
-            {
+            if let Some(VolumeSerial::Short(v)) = serial {
                 fat_volume_serial = Some(v);
+            }
+        }
+    };
+    match &mbr.gpt {
+        // MBR: consume the per-partition volume info disk-forensic/mbr-partition-forensic
+        // already decoded (ADR 0003) — no boot-record reading in this source.
+        None => {
+            for p in &mbr.partitions {
+                record(p.volume_serial, encryption_of(p.encryption, p.detected_fs));
+            }
+        }
+        // GPT: `GptEntry` does not yet carry volume info, so read each used partition's boot
+        // record and delegate the decode to forensicnomicon.
+        Some(g) => {
+            for e in g.partitions.iter().filter(|e| e.is_used()) {
+                let Some(vbr) = read_region(reader, e.first_lba * g.sector_size, FS_PROBE_BYTES)
+                else {
+                    continue; // the partition's VBR is beyond the image (a truncated capture).
+                };
+                let fs = mbr_partition_forensic::signature::detect(&vbr);
+                record(
+                    forensicnomicon::volume_serial::volume_serial(&vbr),
+                    classify_encryption(&vbr, fs),
+                );
             }
         }
     }
@@ -191,9 +196,31 @@ fn read_region<R: Read + Seek>(reader: &mut R, offset: u64, len: usize) -> Optio
     (filled != 0).then_some(buf)
 }
 
-/// Classify a partition's volume-encryption state from its VBR and detected filesystem.
-/// BitLocker is a spec-defined signature rule; `Luks` / `UnrecognizedFilesystem` follow the
-/// filesystem detector. `None` for a recognized, unencrypted filesystem.
+/// Map a partition's pre-decoded volume-encryption + detected filesystem (as
+/// disk-forensic/mbr-partition-forensic already surface them) to this source's
+/// [`EncryptionKind`]. BitLocker comes from forensicnomicon's volume-encryption detection;
+/// LUKS / unrecognized follow the filesystem detector.
+fn encryption_of(
+    enc: Option<forensicnomicon::volume_encryption::VolumeEncryption>,
+    detected_fs: Option<DetectedFs>,
+) -> Option<EncryptionKind> {
+    use forensicnomicon::volume_encryption::VolumeEncryption;
+    if let Some(e) = enc {
+        return Some(match e {
+            VolumeEncryption::BitLocker => EncryptionKind::BitLocker,
+            VolumeEncryption::BitLockerToGo => EncryptionKind::BitLockerToGo,
+        });
+    }
+    match detected_fs {
+        Some(DetectedFs::Luks) => Some(EncryptionKind::Luks),
+        Some(DetectedFs::Unknown) => Some(EncryptionKind::UnrecognizedFilesystem),
+        _ => None,
+    }
+}
+
+/// Classify a partition's volume-encryption state from its VBR and detected filesystem — the
+/// boot-record path, used for GPT partitions whose entries do not yet carry decoded volume
+/// info. BitLocker via forensicnomicon; `Luks` / `UnrecognizedFilesystem` follow the detector.
 fn classify_encryption(vbr: &[u8], detected_fs: DetectedFs) -> Option<EncryptionKind> {
     // BitLocker detection — fixed-drive `-FVE-FS-` and BitLocker To Go's identifier GUID — is
     // volume-encryption *knowledge*, owned by forensicnomicon (ADR 0003), not this source.
@@ -520,9 +547,25 @@ mod tests {
             parse_boot_sectors(&img).expect("valid MBR").encryption,
             None
         );
-        // The classifier itself: a plain NTFS VBR and empty bytes are not encryption.
+        // The boot-record classifier (GPT path): every encryption kind, plus non-encryption.
         assert_eq!(classify_encryption(&ntfs_vbr(), DetectedFs::Ntfs), None);
         assert_eq!(classify_encryption(&[0u8; 4], DetectedFs::AllZeros), None);
+        assert_eq!(
+            classify_encryption(&bitlocker_vbr(), DetectedFs::Unknown),
+            Some(EncryptionKind::BitLocker)
+        );
+        assert_eq!(
+            classify_encryption(&to_go_vbr(), DetectedFs::Fat),
+            Some(EncryptionKind::BitLockerToGo)
+        );
+        assert_eq!(
+            classify_encryption(&[0u8; 512], DetectedFs::Luks),
+            Some(EncryptionKind::Luks)
+        );
+        assert_eq!(
+            classify_encryption(&[0u8; 512], DetectedFs::Unknown),
+            Some(EncryptionKind::UnrecognizedFilesystem)
+        );
     }
 
     #[test]
@@ -704,5 +747,38 @@ mod tests {
             "GPT header must not be flagged as encrypted"
         );
         assert_eq!(d.fat_volume_serial, Some(0xB4D8_5399));
+    }
+
+    #[test]
+    fn a_gpt_partition_beyond_the_image_is_skipped() {
+        // A GPT with a used partition whose first LBA lies past the image end (a truncated
+        // capture): the in-image FAT partition is read, the out-of-range one is skipped.
+        const SECTOR: usize = 512;
+        const SECTORS: usize = 64;
+        let mut disk = vec![0u8; SECTOR * SECTORS];
+        disk[450] = 0xEE;
+        disk[454..458].copy_from_slice(&1u32.to_le_bytes());
+        disk[458..462].copy_from_slice(&((SECTORS - 1) as u32).to_le_bytes());
+        disk[510..512].copy_from_slice(&[0x55, 0xAA]);
+        let mut array = vec![0u8; 4 * 128];
+        array[0..128].copy_from_slice(&gpt_entry("EBD0A0A2-B9E5-4433-87C0-68B6B72699C7", 3, 30));
+        // second used entry starting far past the 64-sector image
+        array[128..256].copy_from_slice(&gpt_entry(
+            "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7",
+            9000,
+            9030,
+        ));
+        let array_crc = gpt_partition_forensic::crc32::checksum(&array);
+        disk[SECTOR..SECTOR + 512].copy_from_slice(&gpt_header(1, 63, 2, array_crc));
+        disk[2 * SECTOR..2 * SECTOR + array.len()].copy_from_slice(&array);
+        disk[62 * SECTOR..62 * SECTOR + array.len()].copy_from_slice(&array);
+        disk[63 * SECTOR..63 * SECTOR + 512].copy_from_slice(&gpt_header(63, 1, 62, array_crc));
+        let vbr = 3 * SECTOR;
+        disk[vbr + 3..vbr + 11].copy_from_slice(b"MSDOS5.0");
+        disk[vbr + 0x52..vbr + 0x5A].copy_from_slice(b"FAT32   ");
+        disk[vbr + 0x43..vbr + 0x47].copy_from_slice(&0xAABB_CCDDu32.to_le_bytes());
+        disk[vbr + 510..vbr + 512].copy_from_slice(&[0x55, 0xAA]);
+        let d = parse_boot_sectors(&disk).expect("valid GPT");
+        assert_eq!(d.fat_volume_serial, Some(0xAABB_CCDD));
     }
 }

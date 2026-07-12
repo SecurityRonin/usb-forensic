@@ -81,6 +81,9 @@ exclude = ["fuzz"]
 # Swap this to the crates.io version once forensicnomicon 1.6 is released.
 [patch.crates-io]
 forensicnomicon = { git = "https://github.com/SecurityRonin/forensicnomicon", branch = "volume-analysis-1.6" }
+# mbr-partition-forensic surfaces per-partition {volume_serial, encryption} on PartitionSummary;
+# use the branch until it publishes, then drop this and bump the dep.
+mbr-partition-forensic = { git = "https://github.com/SecurityRonin/mbr-partition-forensic", branch = "volume-fields" }
 
 # Paranoid Gatekeeper: this crate will consume attacker-controllable, already-decoded
 # USB-history events and correlate them. Never panic, never trust a value.
