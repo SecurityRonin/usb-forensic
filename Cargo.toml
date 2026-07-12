@@ -45,6 +45,8 @@ plist = "1.10"
 winevt-extract = "0.4"
 # Parse the event-log ISO-8601 TimeCreated into epoch seconds.
 jiff = "0.2"
+# Read EnCase E01 forensic images directly (built-in image mounting), no external mounter.
+ewf = "0.4"
 # Fleet reader crates are wired in per-source, under TDD (see docs/roadmap.md):
 #   winreg-artifacts   USBSTOR / MountedDevices / MountPoints2 / WPDBUSENUM / VolumeInfoCache / Amcache
 #   peripheral-core    setupapi.dev.log device-install events

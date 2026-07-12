@@ -20,8 +20,8 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | Live system processing | USB Detective, USBFT, USBDeview | 📋 |
 | Individual files / folders of extracted artifacts | all | 🏗 (core accepts decoded records) |
 | Logical drives | USB Detective, USBFT | 📋 |
-| Mounted forensic images (E01/raw/…) | USB Detective (Pro), USBFT | 🏗 (raw disk-image boot sectors — MBR disk signature + FAT volume serial — read directly by `usb4n6`; E01 via `ewfexport` to raw. Tier-1: CFReDS RM#2 stick → its host label) |
-| Built-in image mounting (no external mounter) | USBFT (Arsenal Image Mounter) | 📋 (fleet `4n6mount` FUSE bridge) |
+| Mounted forensic images (E01/raw/…) | USB Detective (Pro), USBFT | ✅ (raw disk images and `EnCase` E01 read directly by `usb4n6` — MBR disk signature + FAT volume serial. Tier-1 on the real CFReDS RM#2 stick, raw and E01) |
+| Built-in image mounting (no external mounter) | USBFT (Arsenal Image Mounter) | ✅ (`usb4n6` reads an `EnCase` E01 directly via the `ewf` crate — no ewfmount/TSK. Tier-1 on the real CFReDS rm2 stick E01: decodes the same disk sig E221-034C / FAT serial B4D8-5399 as the raw extraction) |
 | Volume Shadow Copies — auto-aggregated | USB Detective, USBFT | 📋 (fleet `[H]` VSS layer) |
 | Registry transaction-log replay (uncommitted data) | USB Detective | 📋 |
 | Remote-machine enumeration | USBDeview | 📋 |

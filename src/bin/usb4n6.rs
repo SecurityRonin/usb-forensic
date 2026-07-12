@@ -9,7 +9,7 @@
 //! ```text
 //! usb4n6 [--table|--timeline|--files|--export-mbr|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] <file>...
 //!     # files: setupapi.dev.log, a SYSTEM hive, .lnk, *.automaticDestinations-ms,
-//!     #        a Partition/Diagnostic .evtx, a raw USB device image, a macOS com.apple.iPod.plist, or a Linux syslog/dmesg (auto-detected)
+//!     #        a Partition/Diagnostic .evtx, a raw or E01 USB device image, a macOS com.apple.iPod.plist, or a Linux syslog/dmesg (auto-detected)
 //! usb4n6 --version
 //! ```
 //! stdout: JSONL (default), a results grid (`--table`), the aggregate super-timeline as
@@ -126,6 +126,27 @@ fn is_evtx(bytes: &[u8]) -> bool {
 /// A raw disk image with an MBR ends its first sector with the `0x55AA` boot signature.
 fn is_disk_image(bytes: &[u8]) -> bool {
     bytes.get(0x1FE..0x200) == Some(&[0x55, 0xAA])
+}
+
+/// An `EnCase` E01 forensic image begins with the `EVF` + `09 0d 0a ff 00` signature.
+fn is_e01(bytes: &[u8]) -> bool {
+    bytes.get(..8) == Some(b"EVF\x09\x0d\x0a\xff\x00")
+}
+
+/// Open an `EnCase` E01 image and decode its boot sectors (built-in image mounting — no
+/// external mounter). Reads a bounded four-mebibyte media prefix (covering the boot record
+/// and a USB stick's first-partition boot sectors, aligned at sector 128 or 2048); a
+/// partition beyond that is skipped by `parse_boot_sectors`. `None` on an invalid image.
+fn parse_e01_device_image(path: &str) -> Option<DeviceImage> {
+    use std::io::Read as _;
+    let mut reader = ewf::EwfReader::open(path).ok()?;
+    let mut buf = Vec::new();
+    reader
+        .by_ref()
+        .take(4 * 1024 * 1024)
+        .read_to_end(&mut buf)
+        .ok()?;
+    parse_boot_sectors(&buf)
 }
 
 /// A property list — a binary `bplist00` or an XML plist (the `com.apple.iPod.plist` form).
@@ -271,6 +292,11 @@ fn ingest(paths: &[&String], year: Option<i64>) -> Option<Ingested> {
                 eprintln!("usb4n6: {path}: plist has no Apple-device history, skipping");
             } else {
                 g.apple_devices.push((devs, (*path).clone()));
+            }
+        } else if is_e01(&bytes) {
+            match parse_e01_device_image(path) {
+                Some(img) => g.device_images.push((img, (*path).clone())),
+                None => eprintln!("usb4n6: {path}: E01 has no readable MBR, skipping"),
             }
         } else if is_disk_image(&bytes) {
             match parse_boot_sectors(&bytes) {
