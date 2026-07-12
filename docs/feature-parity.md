@@ -102,7 +102,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 | Library-embeddable (used by Issen / other fleet crates) | ✅ (this crate) |
 | `#![forbid(unsafe_code)]`, panic-free (unwrap/expect denied) | ✅ |
 | 100% line coverage gate | ✅ |
-| Fuzzed at every parse boundary | 📋 (upstream reader crates + own adapters) |
+| Fuzzed at every parse boundary | ✅ (cargo-fuzz targets for all four raw parsers — boot sectors, system_profiler JSON, unified-log JSON, iPod plist — 100k iterations each clean; PR smoke-fuzz + weekly 10-min CI) |
 | Validated against independent oracle on real images | ✅ (every source validated Tier-1 against real artifacts + an independent oracle: regipy, python-evtx, the NIST CFReDS answer key, `system_profiler` cross-check, a Python epoch oracle) |
 
 ---

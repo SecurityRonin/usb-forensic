@@ -1,0 +1,36 @@
+[package]
+name = "usb-forensic-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+usb-forensic = { path = ".." }
+
+[[bin]]
+name = "boot_sectors"
+path = "fuzz_targets/boot_sectors.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "system_profiler"
+path = "fuzz_targets/system_profiler.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "unified_log"
+path = "fuzz_targets/unified_log.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "ipod_plist"
+path = "fuzz_targets/ipod_plist.rs"
+test = false
+doc = false

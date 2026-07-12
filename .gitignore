@@ -24,3 +24,8 @@ Thumbs.db
 /scratch
 *.hve
 *.plaso
+# cargo-fuzz build output, corpus, and crash artifacts
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+/fuzz/Cargo.lock

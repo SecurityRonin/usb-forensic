@@ -57,6 +57,9 @@ workspace = true
 
 [workspace]
 resolver = "2"
+# The fuzz crate is its own cargo-fuzz target set (nightly, libfuzzer); keep it out of the
+# main workspace so it never affects the normal build, MSRV job, or `cargo test`.
+exclude = ["fuzz"]
 
 # Paranoid Gatekeeper: this crate will consume attacker-controllable, already-decoded
 # USB-history events and correlate them. Never panic, never trust a value.
