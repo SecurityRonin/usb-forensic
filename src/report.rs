@@ -21,6 +21,8 @@ pub const CODE_IMPOSSIBLE_ORDER: &str = "USB-IMPOSSIBLE-ORDERING";
 pub const CODE_ENCRYPTED: &str = "USB-VOLUME-ENCRYPTED";
 /// The finding code for an MTP/PTP portable device.
 pub const CODE_MTP: &str = "USB-MTP-DEVICE";
+/// The finding code for a volume reformatted-and-reused (label with multiple serials).
+pub const CODE_REFORMATTED: &str = "USB-VOLUME-REFORMATTED";
 
 /// Convert correlated device histories into forensic findings.
 ///
@@ -84,7 +86,64 @@ pub fn audit(histories: &[DeviceHistory]) -> Vec<Finding> {
             out.push(finding);
         }
     }
+    out.extend(reformatting_findings(histories));
     out
+}
+
+/// Flag a volume whose label appears with two or more distinct volume serials across the
+/// evidence — a formatted-and-reused device (the serial changes on each format, the label
+/// often does not). It recovers *prior* volume serials for a formatted device and is a
+/// classic anti-forensic signal (reformatting to shed traces). One finding per such label,
+/// listing every serial seen. A cross-device pass: each cached volume (e.g. an `EMDMgmt`
+/// record) is its own history keyed by its serial, so the reuse is only visible in aggregate.
+fn reformatting_findings(histories: &[DeviceHistory]) -> Vec<Finding> {
+    // label -> the set of distinct volume serials seen carrying it.
+    let mut by_label: std::collections::BTreeMap<String, BTreeSet<String>> =
+        std::collections::BTreeMap::new();
+    for h in histories {
+        let labels = text_values(h, Attribute::VolumeName);
+        let serials = text_values(h, Attribute::VolumeSerial);
+        for label in &labels {
+            for serial in &serials {
+                by_label
+                    .entry(label.clone())
+                    .or_default()
+                    .insert(serial.clone());
+            }
+        }
+    }
+    by_label
+        .into_iter()
+        .filter(|(_, serials)| serials.len() >= 2)
+        .map(|(label, serials)| {
+            let list = serials.iter().cloned().collect::<Vec<_>>().join(", ");
+            let mut builder =
+                Finding::observation(Severity::Medium, Category::Integrity, CODE_REFORMATTED)
+                    .note(format!(
+                        "volume {label:?} appears with {} distinct volume serials ({list}) — \
+                         consistent with the device having been reformatted and reused",
+                        serials.len()
+                    ))
+                    .mitre("T1070.004");
+            for serial in &serials {
+                builder = builder.evidence("VolumeSerial", serial.clone());
+            }
+            builder.build()
+        })
+        .collect()
+}
+
+/// Every text value recorded for `attr` on this device.
+fn text_values(h: &DeviceHistory, attr: Attribute) -> Vec<String> {
+    h.attributes
+        .iter()
+        .filter(|a| a.attribute == attr)
+        .flat_map(|a| a.values.iter())
+        .filter_map(|v| match &v.value {
+            crate::Value::Text(t) => Some(t.clone()),
+            crate::Value::Timestamp(_) => None,
+        })
+        .collect()
 }
 
 /// Flag a device whose volume carries an encryption signature (e.g. `BitLocker` read from a
@@ -430,6 +489,88 @@ mod tests {
         assert!(!audit(&correlate(&claims))
             .iter()
             .any(|f| f.code == CODE_ENCRYPTED));
+    }
+
+    #[test]
+    fn a_label_with_two_serials_is_flagged_reformatted() {
+        // Same volume label, two distinct serials (across two EMDMgmt records) → the device
+        // was reformatted and reused. Matches the real CFReDS "IAMAN" case.
+        let claims = [
+            claim(
+                "9E6A-5B82",
+                Attribute::VolumeName,
+                Value::Text("IAMAN".into()),
+                SourceKind::EmdMgmt,
+                "a",
+            ),
+            claim(
+                "9E6A-5B82",
+                Attribute::VolumeSerial,
+                Value::Text("9E6A-5B82".into()),
+                SourceKind::EmdMgmt,
+                "a",
+            ),
+            claim(
+                "B4D8-5399",
+                Attribute::VolumeName,
+                Value::Text("IAMAN".into()),
+                SourceKind::EmdMgmt,
+                "b",
+            ),
+            claim(
+                "B4D8-5399",
+                Attribute::VolumeSerial,
+                Value::Text("B4D8-5399".into()),
+                SourceKind::EmdMgmt,
+                "b",
+            ),
+        ];
+        let f = audit(&correlate(&claims))
+            .into_iter()
+            .find(|f| f.code == CODE_REFORMATTED)
+            .expect("reformatting finding");
+        assert_eq!(f.severity, Some(Severity::Medium));
+        assert_eq!(f.evidence.len(), 2);
+        assert!(f.note.contains("IAMAN"));
+    }
+
+    #[test]
+    fn a_label_with_a_single_serial_is_not_flagged() {
+        let claims = [
+            claim(
+                "SER1",
+                Attribute::VolumeName,
+                Value::Text("KINGSTON".into()),
+                SourceKind::EmdMgmt,
+                "a",
+            ),
+            claim(
+                "SER1",
+                Attribute::VolumeSerial,
+                Value::Text("SER1".into()),
+                SourceKind::EmdMgmt,
+                "a",
+            ),
+        ];
+        assert!(!audit(&correlate(&claims))
+            .iter()
+            .any(|f| f.code == CODE_REFORMATTED));
+    }
+
+    #[test]
+    fn a_non_text_volume_attribute_is_ignored_by_the_reformatting_scan() {
+        // Defensive: a VolumeName carrying a Timestamp (mistyped) contributes no label, so
+        // no spurious reformatting finding — and no panic.
+        let claims = [claim(
+            "SER2",
+            Attribute::VolumeName,
+            Value::Timestamp(1),
+            SourceKind::EmdMgmt,
+            "a",
+        )];
+        assert!(!audit(&correlate(&claims))
+            .iter()
+            .any(|f| f.code == CODE_REFORMATTED));
     }
 
     #[test]

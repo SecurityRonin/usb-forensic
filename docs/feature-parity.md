@@ -58,7 +58,7 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | Per-value source provenance retained | USB Detective | ✅ (`ProvenancedValue`: source + locator) |
 | Reproducibility chain (raw bytes → decoding rule per value) | (none) | 📋 the wedge |
 | Deleted / removed-device recovery (Win10 cleanup) | USB Detective | 📋 |
-| Prior volume names/serials for formatted devices | USB Detective | 📋 |
+| Prior volume names/serials for formatted devices | USB Detective | ✅ (`USB-VOLUME-REFORMATTED` finding: a label seen with ≥2 distinct volume serials → reformatted-and-reused, MITRE T1070.004. Tier-1 on the real CFReDS hive: 'IAMAN \$_@' = serials 9E6A-5B82 + B4D8-5399) |
 | Device/volume encryption-type detection | USB Detective | ✅ (BitLocker via the `-FVE-FS-` VBR signature read from a device image → `Encryption` attribute + `USB-VOLUME-ENCRYPTED` finding. Spec-defined rule (Tier-3); validated against a signature fixture AND the real CFReDS FAT stick as a non-false-positive) |
 | TrueCrypt/VeraCrypt mounted-volume history | USBFT | 📋 |
 | Physical-device→host attribution (image the stick, tie it to its host footprint) | USB Detective, USBFT | ✅ (`DeviceImageSource` + disk-signature canonicalization: a raw device image's MBR disk signature joins the MountedDevices bridge AND its FAT volume serial joins EMDMgmt/LNK — unifying the physical device, drive letter, volume label, and per-user mount into ONE record. Tier-1 on the real CFReDS RM#2 stick: the SanDisk 'IAMAN' stick tied to drive E:, label 'IAMAN \$_@', and the informant's 2015-03-24 mount — volume serial Corroborated across the device media and the host SOFTWARE hive) |
