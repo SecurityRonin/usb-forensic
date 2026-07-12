@@ -87,10 +87,11 @@ fn event_id(system: &serde_json::Value) -> Option<u32> {
     u32::try_from(n).ok()
 }
 
-/// A `USB\` / `USBSTOR\` device instance id (a peripheral / mass-storage device), as opposed
-/// to an internal `ACPI\` / `PCI\` / root-hub device that carries no removable-media identity.
+/// A `USB\` / `USBSTOR\` peripheral / mass-storage device instance id, excluding the host's
+/// own root hubs (`USB\ROOT_HUB*`, the USB controllers — infrastructure that is always
+/// present and carries no removable-media identity) and internal `ACPI\` / `PCI\` devices.
 fn is_usb_instance(id: &str) -> bool {
-    id.starts_with("USB\\") || id.starts_with("USBSTOR\\")
+    (id.starts_with("USB\\") || id.starts_with("USBSTOR\\")) && !id.starts_with("USB\\ROOT_HUB")
 }
 
 /// A [`HistorySource`] over decoded USB Kernel-PnP configuration events.
@@ -222,6 +223,23 @@ mod tests {
             "2020-09-19T04:36:42Z",
         );
         assert!(kernel_pnp_events([rec]).is_empty());
+    }
+
+    #[test]
+    fn a_usb_root_hub_controller_is_ignored() {
+        // The host's own USB root hubs are infrastructure, not removable devices.
+        for id in [
+            "USB\\ROOT_HUB\\5&3bb57b&0",
+            "USB\\ROOT_HUB30\\5&d01e486&0&0",
+        ] {
+            let rec = record(
+                "Microsoft-Windows-Kernel-PnP",
+                400,
+                id,
+                "2020-09-19T04:36:42Z",
+            );
+            assert!(kernel_pnp_events([rec]).is_empty(), "{id} must be excluded");
+        }
     }
 
     #[test]

@@ -28,11 +28,12 @@ use peripheral_core::setupapi::parse_setupapi;
 use peripheral_core::volume_info::{parse_volume_info_cache, VolumeLabel};
 use std::process::ExitCode;
 use usb_forensic::{
-    analyse_device_image, audit, parse_boot_sectors, parse_ipod_plist, parse_system_profiler,
-    parse_unified_log, to_jsonl, AppleDevice, AppleIPodSource, DeviceImage, DeviceImageSource,
-    EmdMgmtSource, HistorySource, JumpListArtifact, JumpListSource, LnkArtifact, LnkSource,
-    MacUnifiedLogSource, MacUsbDevice, MacUsbSource, MountPoints2Source, PartitionDiagSource,
-    PeripheralSource, SourceKind, UsbEnumeration, VolumeCacheSource,
+    analyse_device_image, audit, kernel_pnp_events, parse_boot_sectors, parse_ipod_plist,
+    parse_system_profiler, parse_unified_log, to_jsonl, AppleDevice, AppleIPodSource, DeviceImage,
+    DeviceImageSource, EmdMgmtSource, HistorySource, JumpListArtifact, JumpListSource,
+    KernelPnpEvent, KernelPnpSource, LnkArtifact, LnkSource, MacUnifiedLogSource, MacUsbDevice,
+    MacUsbSource, MountPoints2Source, PartitionDiagSource, PeripheralSource, SourceKind,
+    UsbEnumeration, VolumeCacheSource,
 };
 use winevt_extract::{partition_diag, PartitionDiagEvent};
 
@@ -123,6 +124,21 @@ fn is_evtx(bytes: &[u8]) -> bool {
     bytes.get(..8) == Some(b"ElfFile\0")
 }
 
+/// Parse a `.evtx` and extract USB Kernel-PnP configuration events. Iterates the raw records
+/// as JSON (the `evtx` reader) and defers the field decoding to `kernel_pnp_events`. Returns
+/// empty on an unreadable file or a log with no USB Kernel-PnP events.
+fn parse_kernel_pnp(path: &str) -> Vec<KernelPnpEvent> {
+    let Ok(mut parser) = evtx::EvtxParser::from_path(path) else {
+        return Vec::new();
+    };
+    kernel_pnp_events(
+        parser
+            .records_json_value()
+            .filter_map(Result::ok)
+            .map(|r| r.data),
+    )
+}
+
 /// A raw disk image with an MBR ends its first sector with the `0x55AA` boot signature.
 fn is_disk_image(bytes: &[u8]) -> bool {
     bytes.get(0x1FE..0x200) == Some(&[0x55, 0xAA])
@@ -190,6 +206,7 @@ struct Ingested {
     lnk: Vec<LnkArtifact>,
     jumplists: Vec<JumpListArtifact>,
     partition_diag: Vec<PartitionDiagEvent>,
+    kernel_pnp: Vec<KernelPnpEvent>,
     volume_labels: Vec<VolumeLabel>,
     emd_volumes: Vec<EmdVolume>,
     device_images: Vec<(DeviceImage, String)>,
@@ -209,6 +226,7 @@ impl Ingested {
             + self.lnk.len()
             + self.jumplists.len()
             + self.partition_diag.len()
+            + self.kernel_pnp.len()
             + self.volume_labels.len()
             + self.user_mounts.len()
             + self.emd_volumes.len()
@@ -298,11 +316,14 @@ fn ingest(paths: &[&String], year: Option<i64>) -> Option<Ingested> {
                 None => eprintln!("usb4n6: {path}: MBR present but unreadable, skipping"),
             }
         } else if is_evtx(&bytes) {
-            // The evtx reader parses the file by path (not the bytes we sniffed).
+            // The evtx reader parses the file by path (not the bytes we sniffed). Each
+            // extractor scans for its own provider and returns empty for a log that is not
+            // its own, so both run on any .evtx: Partition/Diagnostic and Kernel-PnP.
             match partition_diag(std::path::Path::new(path.as_str())) {
                 Ok(events) => g.partition_diag.extend(events),
                 Err(err) => eprintln!("usb4n6: {path}: cannot parse event log: {err}"),
             }
+            g.kernel_pnp.extend(parse_kernel_pnp(path));
         } else {
             let text = String::from_utf8_lossy(&bytes);
             if looks_like_linux_syslog(&text) {
@@ -333,16 +354,18 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
     let lnk = LnkSource::new(&g.lnk);
     let jumplist = JumpListSource::new(&g.jumplists);
     let partdiag = PartitionDiagSource::new(&g.partition_diag);
+    let kernelpnp = KernelPnpSource::new(&g.kernel_pnp);
     let volcache = VolumeCacheSource::new(&g.volume_labels);
     let usermounts = MountPoints2Source::new(&g.user_mounts);
     let emd = EmdMgmtSource::new(&g.emd_volumes);
-    let sources: [&dyn HistorySource; 9] = [
+    let sources: [&dyn HistorySource; 10] = [
         &setupapi,
         &registry,
         &linux,
         &lnk,
         &jumplist,
         &partdiag,
+        &kernelpnp,
         &volcache,
         &usermounts,
         &emd,
