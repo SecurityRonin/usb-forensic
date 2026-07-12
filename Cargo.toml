@@ -47,12 +47,22 @@ winevt-extract = "0.4"
 jiff = "0.2"
 # Read EnCase E01 forensic images directly (built-in image mounting), no external mounter.
 ewf = "0.4"
+# Partition-scheme dispatch (MBR/GPT/APM) + filesystem-signature detection, tested against
+# real disk corpora — replaces hand-rolled boot-sector parsing. `mbr-partition-forensic`
+# supplies the PartitionSummary / DetectedFs types the DiskReport carries.
+disk-forensic = "0.9"
+mbr-partition-forensic = "0.6"
 # Fleet reader crates are wired in per-source, under TDD (see docs/roadmap.md):
 #   winreg-artifacts   USBSTOR / MountedDevices / MountPoints2 / WPDBUSENUM / VolumeInfoCache / Amcache
 #   peripheral-core    setupapi.dev.log device-install events
 #   winevt-forensic    Partition/Diagnostic event log (volume serials)
 #   lnk-core           recent-file LNK volume-serial join
 #   forensicnomicon    the report vocabulary (Finding / Severity / Category)
+
+[dev-dependencies]
+# crc32::checksum to build spec-valid GPT test fixtures in-memory (the same recipe
+# disk-forensic's own dispatch tests use) — no committed GPT blobs.
+gpt-partition-forensic = "0.6"
 
 [lints]
 workspace = true
