@@ -19,6 +19,8 @@ pub const CODE_HISTORY: &str = "USB-DEVICE-HISTORY";
 pub const CODE_IMPOSSIBLE_ORDER: &str = "USB-IMPOSSIBLE-ORDERING";
 /// The finding code for a device whose volume is encrypted.
 pub const CODE_ENCRYPTED: &str = "USB-VOLUME-ENCRYPTED";
+/// The finding code for an MTP/PTP portable device.
+pub const CODE_MTP: &str = "USB-MTP-DEVICE";
 
 /// Convert correlated device histories into forensic findings.
 ///
@@ -78,6 +80,9 @@ pub fn audit(histories: &[DeviceHistory]) -> Vec<Finding> {
         if let Some(finding) = encryption_finding(h) {
             out.push(finding);
         }
+        if let Some(finding) = mtp_finding(h) {
+            out.push(finding);
+        }
     }
     out
 }
@@ -103,6 +108,28 @@ fn encryption_finding(h: &DeviceHistory) -> Option<Finding> {
             ))
             .build(),
     )
+}
+
+/// Flag an MTP/PTP portable device (phone/tablet/camera). Such a device is a data-exfil
+/// endpoint that leaves fewer artifacts than mass storage and never appears under
+/// `USBSTOR`, so its presence is material and worth surfacing — stated, not judged.
+fn mtp_finding(h: &DeviceHistory) -> Option<Finding> {
+    let is_mtp = h.attributes.iter().any(|a| {
+        a.attribute == Attribute::DeviceClass
+            && a.values
+                .iter()
+                .any(|v| matches!(&v.value, crate::Value::Text(t) if t == "MTP"))
+    });
+    is_mtp.then(|| {
+        Finding::observation(Severity::Low, Category::History, CODE_MTP)
+            .note(format!(
+                "device {}: MTP/PTP portable device (phone/tablet/camera) — a data-transfer \
+                 endpoint that does not appear under USBSTOR",
+                h.device.0
+            ))
+            .mitre("T1052.001")
+            .build()
+    })
 }
 
 /// The earliest timestamp value across an attribute's corroborating sources, if any.
@@ -403,6 +430,35 @@ mod tests {
         assert!(!audit(&correlate(&claims))
             .iter()
             .any(|f| f.code == CODE_ENCRYPTED));
+    }
+
+    #[test]
+    fn an_mtp_device_yields_a_low_mtp_finding() {
+        let claims = [claim(
+            "PHONE1",
+            Attribute::DeviceClass,
+            Value::Text("MTP".into()),
+            SourceKind::Usbstor,
+            "k",
+        )];
+        let f = audit(&correlate(&claims))
+            .into_iter()
+            .find(|f| f.code == CODE_MTP)
+            .expect("MTP finding");
+        assert_eq!(f.severity, Some(Severity::Low));
+        assert!(f.note.contains("MTP"));
+    }
+
+    #[test]
+    fn a_non_mtp_device_yields_no_mtp_finding() {
+        let claims = [claim(
+            "SN1",
+            Attribute::FirstConnected,
+            Value::Timestamp(1),
+            SourceKind::Usbstor,
+            "k",
+        )];
+        assert!(!audit(&correlate(&claims)).iter().any(|f| f.code == CODE_MTP));
     }
 
     #[test]

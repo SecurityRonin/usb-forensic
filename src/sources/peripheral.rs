@@ -88,6 +88,16 @@ fn push_conn(conn: &DeviceConnection, source: SourceKind, out: &mut Vec<Claim>) 
             },
         });
     }
+    // Surface an MTP/PTP portable device (phone/tablet/camera) — a data-exfil endpoint that
+    // never appears under USBSTOR; peripheral-core classified it from its WUDFWpdMtp service.
+    if conn.bus == peripheral_core::Bus::Mtp {
+        out.push(Claim {
+            device,
+            attribute: Attribute::DeviceClass,
+            value: Value::Text("MTP".to_string()),
+            provenance: Provenance { source, locator },
+        });
+    }
 }
 
 #[cfg(test)]
@@ -194,6 +204,26 @@ mod tests {
                 .map(|c| &c.value),
             Some(&Value::Timestamp(1_700_000_900))
         );
+    }
+
+    #[test]
+    fn an_mtp_bus_device_emits_a_device_class_claim() {
+        let mut conn = parse_setupapi(USBSTOR_HEADER, "f").pop().expect("one conn");
+        conn.bus = peripheral_core::Bus::Mtp;
+        let conns = [conn];
+        let claims = PeripheralSource::new(&conns, SourceKind::Usbstor).claims();
+        let dc = claims
+            .iter()
+            .find(|c| c.attribute == Attribute::DeviceClass)
+            .expect("device-class claim");
+        assert_eq!(dc.value, Value::Text("MTP".to_string()));
+    }
+
+    #[test]
+    fn a_non_mtp_bus_device_emits_no_device_class_claim() {
+        let conns = parse_setupapi(USBSTOR_HEADER, "f"); // bus classified as Usb
+        let claims = PeripheralSource::new(&conns, SourceKind::Usbstor).claims();
+        assert!(!claims.iter().any(|c| c.attribute == Attribute::DeviceClass));
     }
 
     #[test]

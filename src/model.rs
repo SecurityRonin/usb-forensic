@@ -121,6 +121,8 @@ pub enum Attribute {
     DriveLetter,
     /// The volume's encryption type (e.g. `BitLocker`), detected from its boot sector.
     Encryption,
+    /// The device class/protocol when notable (e.g. `MTP` for a phone/tablet/camera).
+    DeviceClass,
 }
 
 /// A comparable claim value, normalized by the source adapter.
