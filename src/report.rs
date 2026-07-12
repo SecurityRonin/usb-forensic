@@ -146,10 +146,10 @@ fn text_values(h: &DeviceHistory, attr: Attribute) -> Vec<String> {
         .collect()
 }
 
-/// Flag a device whose volume carries an encryption signature (e.g. `BitLocker` read from a
-/// device image's boot sector). A `Low`-severity observation — encryption is a legitimate
-/// data-at-rest protection, but the fact that the volume's contents are inaccessible
-/// without the key is material to the investigation and is stated, not judged.
+/// Flag a device whose volume is encrypted or unreadable as a filesystem (read from a
+/// device image's boot sector — e.g. `BitLocker`, or an unrecognized/possibly-encrypted
+/// container). A `Low`-severity observation: the contents are not recoverable without the
+/// key/credentials, which is material to the investigation and is stated, not judged.
 fn encryption_finding(h: &DeviceHistory) -> Option<Finding> {
     let attr = h
         .attributes
@@ -161,8 +161,8 @@ fn encryption_finding(h: &DeviceHistory) -> Option<Finding> {
     Some(
         Finding::observation(Severity::Low, Category::History, CODE_ENCRYPTED)
             .note(format!(
-                "device {}: volume is {kind}-encrypted — its contents are not accessible \
-                 without the decryption key",
+                "device {}: volume filesystem is {kind} — its contents are not readable \
+                 without the encryption key or the container's credentials",
                 h.device.0
             ))
             .build(),

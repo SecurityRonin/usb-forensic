@@ -19,11 +19,17 @@
 use crate::{Attribute, Claim, DeviceKey, HistorySource, Provenance, SourceKind, Value};
 
 /// A physical device's boot-sector identity.
-/// A detected volume-encryption type.
+/// A detected volume-encryption / inaccessible-contents state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncryptionKind {
     /// Microsoft BitLocker / BitLocker To Go — the VBR OEM id is replaced by `-FVE-FS-`.
     BitLocker,
+    /// A partition whose VBR matches **no known filesystem** signature (not NTFS, FAT,
+    /// exFAT, or BitLocker). Consistent with an on-disk encrypted container (VeraCrypt /
+    /// TrueCrypt, whose volume is indistinguishable from random data and carries no
+    /// filesystem header) or a wiped/raw volume — the contents are not readable as a
+    /// filesystem. Stated as an observation, not a claim that it *is* any specific tool.
+    UnrecognizedFilesystem,
 }
 
 impl EncryptionKind {
@@ -32,6 +38,9 @@ impl EncryptionKind {
     pub const fn name(self) -> &'static str {
         match self {
             Self::BitLocker => "BitLocker",
+            Self::UnrecognizedFilesystem => {
+                "unrecognized-filesystem (possible encrypted container)"
+            }
         }
     }
 }
@@ -71,8 +80,13 @@ pub fn parse_boot_sectors(image: &[u8]) -> Option<DeviceImage> {
         let Some(vbr) = image.get(start_lba * 512..start_lba * 512 + 512) else {
             continue; // the partition's VBR is beyond the image.
         };
-        if encryption.is_none() {
-            encryption = detect_encryption(vbr);
+        // BitLocker wins (a definite signature); else, if this partition's VBR matches no
+        // known filesystem, flag it as an unrecognized/possibly-encrypted volume — but only
+        // record that when nothing definite was found, and never override BitLocker.
+        if let Some(kind) = detect_encryption(vbr) {
+            encryption = Some(kind);
+        } else if encryption.is_none() && !is_recognized_filesystem(vbr) {
+            encryption = Some(EncryptionKind::UnrecognizedFilesystem);
         }
         if fat_volume_serial.is_none() && FAT_TYPES.contains(&ptype) {
             fat_volume_serial = Some(fat_bs_volid(vbr));
@@ -90,6 +104,15 @@ pub fn parse_boot_sectors(image: &[u8]) -> Option<DeviceImage> {
 /// — the documented FVE signature (see the module reference). `None` for a plain FS.
 fn detect_encryption(vbr: &[u8]) -> Option<EncryptionKind> {
     (vbr.get(3..11) == Some(b"-FVE-FS-")).then_some(EncryptionKind::BitLocker)
+}
+
+/// Whether a VBR carries a recognized filesystem signature: NTFS / exFAT at the OEM id
+/// (offset 3), or FAT (`FAT32   ` at `0x52`, or `FAT1`/`FAT2` at `0x36` for FAT12/16). A
+/// VBR matching none of these is unrecognized (see [`EncryptionKind::UnrecognizedFilesystem`]).
+fn is_recognized_filesystem(vbr: &[u8]) -> bool {
+    matches!(vbr.get(3..11), Some(b"NTFS    " | b"EXFAT   "))
+        || vbr.get(0x52..0x5A) == Some(b"FAT32   ")
+        || matches!(vbr.get(0x36..0x39), Some(b"FAT"))
 }
 
 /// FAT partition type bytes (`FAT12`/`16`/`32`, incl. LBA variants).
@@ -283,7 +306,8 @@ mod tests {
 
     #[test]
     fn plain_filesystem_media_is_not_flagged_as_encrypted() {
-        // A real FAT32 volume ("FAT32   "/"MSDOS5.0" OEM) must NOT false-positive.
+        // A real FAT32 volume ("FAT32   " OEM) must NOT false-positive as encrypted or
+        // unrecognized — it is a recognized filesystem.
         let img = mbr_with_fat32(1, 1, 42);
         assert_eq!(
             parse_boot_sectors(&img).expect("valid MBR").encryption,
@@ -291,6 +315,38 @@ mod tests {
         );
         assert_eq!(detect_encryption(b"NTFS    xxxxxxxx"), None);
         assert_eq!(detect_encryption(&[0u8; 4]), None);
+    }
+
+    #[test]
+    fn is_recognized_filesystem_accepts_the_known_signatures_only() {
+        let mut ntfs = vec![0u8; 512];
+        ntfs[3..11].copy_from_slice(b"NTFS    ");
+        assert!(is_recognized_filesystem(&ntfs));
+        let mut exfat = vec![0u8; 512];
+        exfat[3..11].copy_from_slice(b"EXFAT   ");
+        assert!(is_recognized_filesystem(&exfat));
+        let mut fat16 = vec![0u8; 512];
+        fat16[0x36..0x39].copy_from_slice(b"FAT");
+        assert!(is_recognized_filesystem(&fat16));
+        // Random / no signature → unrecognized.
+        assert!(!is_recognized_filesystem(&[0xABu8; 512]));
+    }
+
+    #[test]
+    fn an_unrecognized_filesystem_partition_is_flagged_as_possibly_encrypted() {
+        // A partition with a valid MBR entry but a VBR matching no known filesystem
+        // signature (all-random, as a VeraCrypt/TrueCrypt container appears) → flagged.
+        let mut img = vec![0xABu8; 1024];
+        img[0x1B8..0x1BC].copy_from_slice(&7u32.to_le_bytes());
+        img[0x1FE..0x200].copy_from_slice(&[0x55, 0xAA]);
+        img[0x1BE + 4] = 0x07; // a non-empty partition type
+        img[0x1BE + 8..0x1BE + 12].copy_from_slice(&1u32.to_le_bytes());
+        let d = parse_boot_sectors(&img).expect("valid MBR");
+        assert_eq!(d.encryption, Some(EncryptionKind::UnrecognizedFilesystem));
+        assert_eq!(
+            EncryptionKind::UnrecognizedFilesystem.name(),
+            "unrecognized-filesystem (possible encrypted container)"
+        );
     }
 
     #[test]
