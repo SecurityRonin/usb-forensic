@@ -31,7 +31,7 @@ exclude = [
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 lnk-core = "0.4"
-forensicnomicon = "1.2"
+forensicnomicon = "1.6"
 # Device-connection domain reader: setupapi.dev.log, SYSTEM-hive Enum device keys
 # (+ MountedDevices drive-letter join), and Linux kernel logs, each decoded to
 # DeviceConnection records.
@@ -75,6 +75,12 @@ resolver = "2"
 # The fuzz crate is its own cargo-fuzz target set (nightly, libfuzzer); keep it out of the
 # main workspace so it never affects the normal build, MSRV job, or `cargo test`.
 exclude = ["fuzz"]
+
+# usb-forensic is `publish = false`, so it may take forensicnomicon's volume-analysis
+# (`volume_encryption` / `volume_serial`) from git main until forensicnomicon 1.6 publishes.
+# Swap this to the crates.io version once forensicnomicon 1.6 is released.
+[patch.crates-io]
+forensicnomicon = { git = "https://github.com/SecurityRonin/forensicnomicon", branch = "volume-analysis-1.6" }
 
 # Paranoid Gatekeeper: this crate will consume attacker-controllable, already-decoded
 # USB-history events and correlate them. Never panic, never trust a value.

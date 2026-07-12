@@ -13,21 +13,21 @@
 //! delegated to the [`disk_forensic`] crate, which is tested against real disk corpora
 //! covering every partition-table + filesystem combination — so this source never re-parses
 //! a partition table by hand (a GPT protective MBR is recognized as GPT, not mis-walked as
-//! MBR partitions). On top of that partition list this source reads the two USB-attribution
-//! values `disk-forensic` does not surface: each partition's FAT `BS_VolID`, and BitLocker.
+//! MBR partitions). On top of that partition list this source reads two USB-attribution
+//! values, each from a **volume**-analysis function owned by [`forensicnomicon`] (the fleet
+//! knowledge base), because a volume's serial and its encryption are properties of the
+//! volume, not of the bus or partition scheme (ADR 0003):
 //!
-//! **Volume encryption.** A **fixed-drive** BitLocker volume replaces the VBR OEM identifier
-//! (offset 3) with the documented `-FVE-FS-` signature (Windows Vista `EB 52 90`, 7-10
-//! `EB 58 90`). **BitLocker To Go** on removable media — the case that matters most here —
-//! instead presents a *real* FAT/exFAT discovery volume and is identified only by the
-//! BitLocker identifier GUID `4967D63B-2E29-4AD8-8399-F6A339E3D001` carried in the volume
-//! header (libbde [BDE format], volume-header tables). Detection scans the volume header for
-//! that GUID, so it catches every BitLocker layout version regardless of the exact offset. A
-//! [`disk_forensic`]-reported LUKS or unrecognized filesystem is surfaced likewise.
-//! Detection is a spec-defined rule, validated against spec-faithful volume headers and
-//! against real unencrypted media (which must NOT false-positive).
+//! - the FAT/exFAT **volume serial** ([`forensicnomicon::volume_serial`]) — the 4-byte
+//!   `EMDMgmt`/`.lnk` join key; and
+//! - **BitLocker** ([`forensicnomicon::volume_encryption`]) — fixed-drive `-FVE-FS-` and, the
+//!   case that matters most for removable media, **BitLocker To Go**, whose discovery volume
+//!   presents a real FAT boot record so only the identifier GUID reveals it.
 //!
-//! [BDE format]: https://github.com/libyal/libbde/blob/main/documentation/BitLocker%20Drive%20Encryption%20(BDE)%20format.asciidoc
+//! A [`disk_forensic`]-reported LUKS or unrecognized filesystem is surfaced likewise. This
+//! source holds no BitLocker signatures or field offsets of its own; the knowledge lives in
+//! forensicnomicon, validated there and cross-checked here against real unencrypted media
+//! (which must NOT false-positive).
 
 use crate::{Attribute, Claim, DeviceKey, HistorySource, Provenance, SourceKind, Value};
 use disk_forensic::{analyse_disk, DiskReport};
@@ -82,14 +82,6 @@ impl EncryptionKind {
         }
     }
 }
-
-/// The BitLocker identifier GUID `4967D63B-2E29-4AD8-8399-F6A339E3D001`, in the mixed-endian
-/// byte order it is stored in a volume header (Data1-3 little-endian, Data4 big-endian). Its
-/// presence in a partition's volume header marks a BitLocker / BitLocker To Go volume even
-/// when the OEM identifier at offset 3 is an ordinary FAT/exFAT string (libbde BDE format).
-pub(crate) const BITLOCKER_GUID: [u8; 16] = [
-    0x3B, 0xD6, 0x67, 0x49, 0x29, 0x2E, 0xD8, 0x4A, 0x83, 0x99, 0xF6, 0xA3, 0x39, 0xE3, 0xD0, 0x01,
-];
 
 /// A physical device's boot-sector identity, decoded from its raw disk image.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -158,8 +150,15 @@ pub fn analyse_device_image<R: Read + Seek>(reader: &mut R, disk_size: u64) -> O
                 encryption = Some(kind);
             }
         }
-        if fat_volume_serial.is_none() && fs == DetectedFs::Fat {
-            fat_volume_serial = Some(fat_bs_volid(&vbr));
+        // The 4-byte FAT/exFAT volume serial (the `EMDMgmt`/`.lnk` join key) — the field
+        // offsets are volume-serial knowledge owned by forensicnomicon (ADR 0003). An 8-byte
+        // NTFS serial (`Long`) is not the FAT join key, so it is not recorded here.
+        if fat_volume_serial.is_none() {
+            if let Some(forensicnomicon::volume_serial::VolumeSerial::Short(v)) =
+                forensicnomicon::volume_serial::volume_serial(&vbr)
+            {
+                fat_volume_serial = Some(v);
+            }
         }
     }
     Some(DeviceImage {
@@ -196,35 +195,26 @@ fn read_region<R: Read + Seek>(reader: &mut R, offset: u64, len: usize) -> Optio
 /// BitLocker is a spec-defined signature rule; `Luks` / `UnrecognizedFilesystem` follow the
 /// filesystem detector. `None` for a recognized, unencrypted filesystem.
 fn classify_encryption(vbr: &[u8], detected_fs: DetectedFs) -> Option<EncryptionKind> {
-    // Fixed-drive BitLocker: the `-FVE-FS-` OEM identifier at offset 3 (Vista / 7-10).
-    if vbr.get(3..11) == Some(b"-FVE-FS-") {
-        return Some(EncryptionKind::BitLocker);
+    // BitLocker detection — fixed-drive `-FVE-FS-` and BitLocker To Go's identifier GUID — is
+    // volume-encryption *knowledge*, owned by forensicnomicon (ADR 0003), not this source.
+    // A To Go discovery volume presents a real FAT boot record, so the filesystem detector
+    // cannot see it; forensicnomicon's GUID scan can.
+    if let Some(enc) = forensicnomicon::volume_encryption::detect_encryption(vbr) {
+        return Some(match enc {
+            forensicnomicon::volume_encryption::VolumeEncryption::BitLocker => {
+                EncryptionKind::BitLocker
+            }
+            forensicnomicon::volume_encryption::VolumeEncryption::BitLockerToGo => {
+                EncryptionKind::BitLockerToGo
+            }
+        });
     }
-    // BitLocker To Go: a FAT/exFAT discovery volume carrying the identifier GUID. Scanning
-    // the volume header catches every layout version (the GUID sits at offset 160 for fixed,
-    // 424 for To Go) without hard-coding an offset.
-    if vbr
-        .windows(BITLOCKER_GUID.len())
-        .any(|w| w == BITLOCKER_GUID)
-    {
-        return Some(EncryptionKind::BitLockerToGo);
-    }
+    // LUKS / unrecognized come from disk-forensic's filesystem detector.
     match detected_fs {
         DetectedFs::Luks => Some(EncryptionKind::Luks),
         DetectedFs::Unknown => Some(EncryptionKind::UnrecognizedFilesystem),
         _ => None,
     }
-}
-
-/// Read a FAT VBR's `BS_VolID`: offset `0x43` when the FS type is `FAT32   ` (at `0x52`),
-/// else `0x27` (FAT12/16). `vbr` is a full 512-byte sector, so both offsets are in range.
-fn fat_bs_volid(vbr: &[u8]) -> u32 {
-    let off = if vbr.get(0x52..0x5A) == Some(b"FAT32   ") {
-        0x43
-    } else {
-        0x27
-    };
-    u32::from_le_bytes([vbr[off], vbr[off + 1], vbr[off + 2], vbr[off + 3]])
 }
 
 /// A [`HistorySource`] over one decoded device image.
@@ -327,6 +317,7 @@ mod tests {
     fn fat16_vbr(bs_volid: u32) -> [u8; 512] {
         let mut vbr = [0u8; 512];
         vbr[3..11].copy_from_slice(b"MSDOS5.0");
+        vbr[0x36..0x3E].copy_from_slice(b"FAT16   "); // BS_FilSysType (a real FAT16 boot record)
         vbr[0x27..0x2B].copy_from_slice(&bs_volid.to_le_bytes());
         vbr[510..512].copy_from_slice(&[0x55, 0xAA]);
         vbr
@@ -416,6 +407,21 @@ mod tests {
         }
         let d = parse_boot_sectors(&img).expect("valid MBR");
         assert_eq!(d.encryption, Some(EncryptionKind::BitLocker));
+    }
+
+    #[test]
+    fn the_first_fat_partitions_serial_is_kept() {
+        // Two FAT32 partitions: the first partition's serial is the device's; the second is
+        // not overwritten (the FAT volume serial is taken once).
+        let mut img = mbr_disk(0xF00D_0001, 0x0B, 2, &fat32_vbr(0x1111_2222));
+        let e = 0x1BE + 16;
+        img[e + 4] = 0x0B;
+        img[e + 8..e + 12].copy_from_slice(&8u32.to_le_bytes());
+        img[e + 12..e + 16].copy_from_slice(&8u32.to_le_bytes());
+        let off = 8 * 512;
+        img[off..off + 512].copy_from_slice(&fat32_vbr(0x9999_8888));
+        let d = parse_boot_sectors(&img).expect("valid MBR");
+        assert_eq!(d.fat_volume_serial, Some(0x1111_2222));
     }
 
     #[test]
@@ -571,7 +577,9 @@ mod tests {
         vbr[0..3].copy_from_slice(&[0xEB, 0x58, 0x90]);
         vbr[3..11].copy_from_slice(b"MSWIN4.1");
         vbr[0x52..0x5A].copy_from_slice(b"FAT32   ");
-        vbr[424..440].copy_from_slice(&BITLOCKER_GUID); // identifier GUID (To Go offset)
+        // identifier GUID (To Go offset) — from forensicnomicon, the knowledge owner
+        vbr[424..440]
+            .copy_from_slice(&forensicnomicon::volume_encryption::BITLOCKER_IDENTIFIER_GUID);
         vbr[510..512].copy_from_slice(&[0x55, 0xAA]);
         vbr
     }
