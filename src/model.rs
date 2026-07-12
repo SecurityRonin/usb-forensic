@@ -20,6 +20,9 @@ pub enum SourceKind {
     SetupApi,
     /// Microsoft-Windows-Partition/Diagnostic event log — volume serials.
     PartitionDiag,
+    /// Microsoft-Windows-Kernel-PnP/Configuration event log — USB device-configuration
+    /// events (a connection witness keyed by the device instance serial).
+    KernelPnp,
     /// A Windows Shell Link (`.lnk`) — the volume-serial file join.
     Lnk,
     /// A Windows Jump List (`*.automaticDestinations-ms` / `*.customDestinations-ms`).
@@ -80,7 +83,7 @@ impl SourceKind {
         match self {
             Self::Usbstor | Self::MountedDevices => ArtifactContainer::SystemHive,
             Self::SetupApi => ArtifactContainer::SetupApiLog,
-            Self::PartitionDiag => ArtifactContainer::EventLog,
+            Self::PartitionDiag | Self::KernelPnp => ArtifactContainer::EventLog,
             Self::Lnk | Self::JumpList => ArtifactContainer::LnkFile,
             Self::LinuxKernelLog => ArtifactContainer::KernelLog,
             Self::VolumeInfoCache | Self::EmdMgmt => ArtifactContainer::SoftwareHive,
