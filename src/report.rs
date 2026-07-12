@@ -458,7 +458,9 @@ mod tests {
             SourceKind::Usbstor,
             "k",
         )];
-        assert!(!audit(&correlate(&claims)).iter().any(|f| f.code == CODE_MTP));
+        assert!(!audit(&correlate(&claims))
+            .iter()
+            .any(|f| f.code == CODE_MTP));
     }
 
     #[test]
