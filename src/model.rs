@@ -36,6 +36,8 @@ pub enum SourceKind {
     DeviceImage,
     /// macOS `com.apple.iPod.plist` — Apple-device (iPhone/iPad/iPod) connection history.
     AppleIPod,
+    /// macOS `system_profiler` / `IORegistry` — the live USB device tree.
+    MacosUsb,
 }
 
 /// The physical storage container an artifact lives in — the tamper surface.
@@ -82,7 +84,7 @@ impl SourceKind {
             Self::VolumeInfoCache | Self::EmdMgmt => ArtifactContainer::SoftwareHive,
             Self::MountPoints2 => ArtifactContainer::UserHive,
             Self::DeviceImage => ArtifactContainer::DeviceMedia,
-            Self::AppleIPod => ArtifactContainer::MacosPlist,
+            Self::AppleIPod | Self::MacosUsb => ArtifactContainer::MacosPlist,
         }
     }
 
@@ -214,6 +216,15 @@ mod tests {
             SourceKind::EmdMgmt.container(),
             ArtifactContainer::SoftwareHive
         );
+    }
+
+    #[test]
+    fn macos_usb_shares_the_macos_artifact_container() {
+        assert_eq!(
+            SourceKind::MacosUsb.container(),
+            ArtifactContainer::MacosPlist
+        );
+        assert!(!SourceKind::MacosUsb.clock_is_local());
     }
 
     #[test]

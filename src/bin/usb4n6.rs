@@ -28,10 +28,10 @@ use peripheral_core::setupapi::parse_setupapi;
 use peripheral_core::volume_info::{parse_volume_info_cache, VolumeLabel};
 use std::process::ExitCode;
 use usb_forensic::{
-    audit, parse_boot_sectors, parse_ipod_plist, to_jsonl, AppleDevice, AppleIPodSource,
-    DeviceImage, DeviceImageSource, EmdMgmtSource, HistorySource, JumpListArtifact, JumpListSource,
-    LnkArtifact, LnkSource, MountPoints2Source, PartitionDiagSource, PeripheralSource, SourceKind,
-    VolumeCacheSource,
+    audit, parse_boot_sectors, parse_ipod_plist, parse_system_profiler, to_jsonl, AppleDevice,
+    AppleIPodSource, DeviceImage, DeviceImageSource, EmdMgmtSource, HistorySource,
+    JumpListArtifact, JumpListSource, LnkArtifact, LnkSource, MacUsbDevice, MacUsbSource,
+    MountPoints2Source, PartitionDiagSource, PeripheralSource, SourceKind, VolumeCacheSource,
 };
 use winevt_extract::{partition_diag, PartitionDiagEvent};
 
@@ -125,6 +125,11 @@ fn is_plist(bytes: &[u8]) -> bool {
         || String::from_utf8_lossy(bytes.get(..512).unwrap_or(bytes)).contains("<plist")
 }
 
+/// A `system_profiler -json SPUSBDataType` capture (JSON carrying the `SPUSBDataType` key).
+fn is_system_profiler_usb(bytes: &[u8]) -> bool {
+    String::from_utf8_lossy(bytes.get(..512).unwrap_or(bytes)).contains("SPUSBDataType")
+}
+
 /// A Linux kernel log carries the `New USB device found` enumeration marker that the
 /// syslog reader keys on; setupapi text does not.
 fn looks_like_linux_syslog(text: &str) -> bool {
@@ -158,6 +163,7 @@ struct Ingested {
     emd_volumes: Vec<EmdVolume>,
     device_images: Vec<(DeviceImage, String)>,
     apple_devices: Vec<(Vec<AppleDevice>, String)>,
+    mac_usb: Vec<(Vec<MacUsbDevice>, String)>,
     mounted_volumes: Vec<MountedVolume>,
     user_mounts: Vec<UserMount>,
 }
@@ -180,6 +186,7 @@ impl Ingested {
                 .iter()
                 .map(|(d, _)| d.len())
                 .sum::<usize>()
+            + self.mac_usb.iter().map(|(d, _)| d.len()).sum::<usize>()
     }
 }
 
@@ -225,6 +232,13 @@ fn ingest(paths: &[&String], year: Option<i64>) -> Option<Ingested> {
                     g.emd_volumes.extend(parse_emdmgmt(&hive, path));
                 }
                 Err(err) => eprintln!("usb4n6: {path}: not a valid registry hive: {err}"),
+            }
+        } else if is_system_profiler_usb(&bytes) {
+            let devs = parse_system_profiler(&bytes);
+            if devs.is_empty() {
+                eprintln!("usb4n6: {path}: system_profiler capture has no USB devices, skipping");
+            } else {
+                g.mac_usb.push((devs, (*path).clone()));
             }
         } else if is_plist(&bytes) {
             let devs = parse_ipod_plist(&bytes);
@@ -298,6 +312,9 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
     }
     for (devs, loc) in &g.apple_devices {
         claims.extend(AppleIPodSource::new(devs, loc.clone()).claims());
+    }
+    for (devs, loc) in &g.mac_usb {
+        claims.extend(MacUsbSource::new(devs, loc.clone()).claims());
     }
     if let Some(offset) = tz_offset {
         usb_forensic::normalize_local_clocks(&mut claims, offset);

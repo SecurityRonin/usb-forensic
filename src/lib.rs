@@ -60,6 +60,7 @@ pub use sources::device_image::{
 pub use sources::emdmgmt::EmdMgmtSource;
 pub use sources::jumplist::{JumpListArtifact, JumpListSource};
 pub use sources::lnk::{LnkArtifact, LnkSource};
+pub use sources::macos_usb::{parse_system_profiler, MacUsbDevice, MacUsbSource};
 pub use sources::mountpoints2::MountPoints2Source;
 pub use sources::partition_diag::PartitionDiagSource;
 pub use sources::peripheral::PeripheralSource;
