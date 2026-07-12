@@ -63,6 +63,39 @@ pub fn render_table(histories: &[DeviceHistory]) -> String {
     out
 }
 
+/// Render the opened/accessed-files report: for every device with recovered file accesses
+/// (LNK/jump-list `AccessedFile` claims), the files opened from it, each with its source
+/// locator. This answers "which files were touched on which stick" — the exfil view. A
+/// device with no file accesses is omitted; the whole report is empty when none were found.
+#[must_use]
+pub fn render_accessed_files(histories: &[DeviceHistory]) -> String {
+    use crate::model::Attribute;
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    for history in histories {
+        let files: Vec<&crate::ProvenancedValue> = history
+            .attributes
+            .iter()
+            .filter(|a| a.attribute == Attribute::AccessedFile)
+            .flat_map(|a| a.values.iter())
+            .collect();
+        if files.is_empty() {
+            continue;
+        }
+        let _ = writeln!(out, "Device: {}", history.device.0);
+        for pv in files {
+            let _ = writeln!(
+                out,
+                "  {}\t[{:?} {}]",
+                render_value(&pv.value),
+                pv.provenance.source,
+                pv.provenance.locator
+            );
+        }
+    }
+    out
+}
+
 /// Neutralize `|` so a value cannot break a Markdown table cell.
 fn cell(text: &str) -> String {
     text.replace('|', "\\|")
@@ -193,6 +226,47 @@ mod tests {
                 locator: loc.into(),
             },
         }
+    }
+
+    #[test]
+    fn accessed_files_lists_opened_files_per_device_and_omits_devices_without_any() {
+        let claims = [
+            claim(
+                "SN1",
+                Attribute::AccessedFile,
+                Value::Text("E:\\secret.docx".into()),
+                SourceKind::Lnk,
+                "recent\\secret.lnk",
+            ),
+            // A device with only a connect time and no file access is omitted.
+            claim(
+                "SN2",
+                Attribute::FirstConnected,
+                Value::Timestamp(1),
+                SourceKind::Usbstor,
+                "k",
+            ),
+        ];
+        let report = render_accessed_files(&correlate(&claims));
+        assert!(report.contains("Device: SN1"));
+        assert!(report.contains("E:\\secret.docx"));
+        assert!(report.contains("recent\\secret.lnk"), "locator shown");
+        assert!(
+            !report.contains("SN2"),
+            "device with no file access omitted"
+        );
+    }
+
+    #[test]
+    fn accessed_files_is_empty_when_no_files_were_opened() {
+        let claims = [claim(
+            "SN1",
+            Attribute::FirstConnected,
+            Value::Timestamp(1),
+            SourceKind::Usbstor,
+            "k",
+        )];
+        assert!(render_accessed_files(&correlate(&claims)).is_empty());
     }
 
     #[test]

@@ -7,7 +7,7 @@
 //! writes output.
 //!
 //! ```text
-//! usb4n6 [--table|--timeline|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] <file>...
+//! usb4n6 [--table|--timeline|--files|--report|--docx|--pdf] [--tz-offset=<secs>] [--year=<YYYY>] <file>...
 //!     # files: setupapi.dev.log, a SYSTEM hive, .lnk, *.automaticDestinations-ms,
 //!     #        a Partition/Diagnostic .evtx, a raw USB device image, a macOS com.apple.iPod.plist, or a Linux syslog/dmesg (auto-detected)
 //! usb4n6 --version
@@ -52,6 +52,8 @@ fn main() -> ExitCode {
         Output::Table
     } else if args.iter().any(|a| a == "--timeline") {
         Output::Timeline
+    } else if args.iter().any(|a| a == "--files") {
+        Output::Files
     } else {
         Output::Jsonl
     };
@@ -68,7 +70,7 @@ fn main() -> ExitCode {
     let paths: Vec<&String> = args.iter().filter(|a| !a.starts_with('-')).collect();
     if paths.is_empty() {
         eprintln!(
-            "usage: usb4n6 [--table|--timeline|--report|--docx|--pdf] [--tz-offset=<secs>] \
+            "usage: usb4n6 [--table|--timeline|--files|--report|--docx|--pdf] [--tz-offset=<secs>] \
              [--year=<YYYY>] <file>...  \
              (setupapi.dev.log/SYSTEM hive/.lnk/jumplist/.evtx/Linux syslog; -V)"
         );
@@ -87,6 +89,8 @@ enum Output {
     /// The aggregate super-timeline: every timestamped event across all devices,
     /// chronological, as JSONL (one event per line).
     Timeline,
+    /// The opened/accessed-files report: files touched on each device.
+    Files,
     /// A court-oriented Markdown forensic report.
     Report,
     /// The forensic report as a native Word `.docx` (binary; redirect to a file).
@@ -354,6 +358,7 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
             }
         },
         Output::Table => usb_forensic::render_table(&histories),
+        Output::Files => usb_forensic::render_accessed_files(&histories),
         Output::Timeline => {
             let events = usb_forensic::super_timeline(&histories);
             match usb_forensic::timeline_to_jsonl(&events) {

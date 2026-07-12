@@ -50,7 +50,7 @@ pub use docx::render_docx;
 pub use model::{ArtifactContainer, Attribute, Claim, DeviceKey, Provenance, SourceKind, Value};
 pub use pdf::render_pdf;
 pub use reconcile::{canonicalize_mounted_volumes, reconcile_volume_serials};
-pub use render::{format_epoch, render_report, render_table};
+pub use render::{format_epoch, render_accessed_files, render_report, render_table};
 pub use report::audit;
 pub use source::{correlate_sources, HistorySource};
 pub use sources::apple_ipod::{parse_ipod_plist, AppleDevice, AppleIPodSource};

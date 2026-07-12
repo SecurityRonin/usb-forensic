@@ -87,7 +87,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 | Verbose per-value report with provenance | USB Detective | ✅ (`usb4n6 --report`) |
 | Per-device timeline | USB Detective | ✅ (per-device JSONL / report block) |
 | Aggregate super-timeline | USB Detective | ✅ (`usb4n6 --timeline`; every timestamped event across all devices, chronological JSONL) |
-| Opened/accessed-files report | USB Detective | 📋 |
+| Opened/accessed-files report | USB Detective | ✅ (`usb4n6 --files`: files opened per device from LNK/jump-list AccessedFile claims, with source locators) |
 | Machine-readable output (JSONL, diffable, pipeable) | (weak in all — Excel/CSV only) | ✅ (`to_jsonl`, default) |
 | `forensicnomicon::report` findings (fleet-uniform, MITRE-tagged) | (fleet-only) | ✅ (`audit`) |
 | Court-ready report with per-value source chain | (Excel only elsewhere) | ✅ native **DOCX + PDF** (`--docx`/`--pdf`, both oracle-validated) + Markdown (`--report`) |
@@ -103,7 +103,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 | `#![forbid(unsafe_code)]`, panic-free (unwrap/expect denied) | ✅ |
 | 100% line coverage gate | ✅ |
 | Fuzzed at every parse boundary | 📋 (upstream reader crates + own adapters) |
-| Validated against independent oracle on real images | 📋 |
+| Validated against independent oracle on real images | ✅ (every source validated Tier-1 against real artifacts + an independent oracle: regipy, python-evtx, the NIST CFReDS answer key, `system_profiler` cross-check, a Python epoch oracle) |
 
 ---
 
