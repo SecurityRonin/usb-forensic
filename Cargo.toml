@@ -84,6 +84,10 @@ forensicnomicon = { git = "https://github.com/SecurityRonin/forensicnomicon", br
 # mbr-partition-forensic surfaces per-partition {volume_serial, encryption} on PartitionSummary;
 # use the branch until it publishes, then drop this and bump the dep.
 mbr-partition-forensic = { git = "https://github.com/SecurityRonin/mbr-partition-forensic", branch = "volume-fields" }
+# gpt-partition-{core,forensic} surface the same on GptEntry (the type lives in core, the
+# forensic analyser populates it). Both patched until they publish.
+gpt-partition-core = { git = "https://github.com/SecurityRonin/gpt-partition-forensic", branch = "volume-fields" }
+gpt-partition-forensic = { git = "https://github.com/SecurityRonin/gpt-partition-forensic", branch = "volume-fields" }
 
 # Paranoid Gatekeeper: this crate will consume attacker-controllable, already-decoded
 # USB-history events and correlate them. Never panic, never trust a value.

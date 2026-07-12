@@ -150,19 +150,12 @@ pub fn analyse_device_image<R: Read + Seek>(reader: &mut R, disk_size: u64) -> O
                 record(p.volume_serial, encryption_of(p.encryption, p.detected_fs));
             }
         }
-        // GPT: `GptEntry` does not yet carry volume info, so read each used partition's boot
-        // record and delegate the decode to forensicnomicon.
+        // GPT: consume the same per-partition volume info, now carried on each `GptEntry`
+        // (populated by gpt-partition-forensic). `GptEntry` has no detected filesystem, so
+        // LUKS / unrecognized-container classification is not available for GPT partitions.
         Some(g) => {
             for e in g.partitions.iter().filter(|e| e.is_used()) {
-                let Some(vbr) = read_region(reader, e.first_lba * g.sector_size, FS_PROBE_BYTES)
-                else {
-                    continue; // the partition's VBR is beyond the image (a truncated capture).
-                };
-                let fs = mbr_partition_forensic::signature::detect(&vbr);
-                record(
-                    forensicnomicon::volume_serial::volume_serial(&vbr),
-                    classify_encryption(&vbr, fs),
-                );
+                record(e.volume_serial, encryption_of(e.encryption, None));
             }
         }
     }
@@ -173,12 +166,6 @@ pub fn analyse_device_image<R: Read + Seek>(reader: &mut R, disk_size: u64) -> O
         mbr: mbr_bytes,
     })
 }
-
-/// Bytes read from each partition's start for filesystem detection: enough to reach the
-/// deepest magic the detector inspects (Btrfs at 64 KiB), so ext/Btrfs volumes are not
-/// mistaken for unrecognized/encrypted ones. All BitLocker and FAT fields sit in the first
-/// 512 bytes, so the same buffer serves every check.
-const FS_PROBE_BYTES: usize = 0x1_0000 + 0x400;
 
 /// Seek to `offset` and read `len` bytes, zero-padding a short final read to `len`. `None`
 /// when the offset is at/after EOF (nothing readable) or the seek/read errors.
@@ -214,32 +201,6 @@ fn encryption_of(
     match detected_fs {
         Some(DetectedFs::Luks) => Some(EncryptionKind::Luks),
         Some(DetectedFs::Unknown) => Some(EncryptionKind::UnrecognizedFilesystem),
-        _ => None,
-    }
-}
-
-/// Classify a partition's volume-encryption state from its VBR and detected filesystem — the
-/// boot-record path, used for GPT partitions whose entries do not yet carry decoded volume
-/// info. BitLocker via forensicnomicon; `Luks` / `UnrecognizedFilesystem` follow the detector.
-fn classify_encryption(vbr: &[u8], detected_fs: DetectedFs) -> Option<EncryptionKind> {
-    // BitLocker detection — fixed-drive `-FVE-FS-` and BitLocker To Go's identifier GUID — is
-    // volume-encryption *knowledge*, owned by forensicnomicon (ADR 0003), not this source.
-    // A To Go discovery volume presents a real FAT boot record, so the filesystem detector
-    // cannot see it; forensicnomicon's GUID scan can.
-    if let Some(enc) = forensicnomicon::volume_encryption::detect_encryption(vbr) {
-        return Some(match enc {
-            forensicnomicon::volume_encryption::VolumeEncryption::BitLocker => {
-                EncryptionKind::BitLocker
-            }
-            forensicnomicon::volume_encryption::VolumeEncryption::BitLockerToGo => {
-                EncryptionKind::BitLockerToGo
-            }
-        });
-    }
-    // LUKS / unrecognized come from disk-forensic's filesystem detector.
-    match detected_fs {
-        DetectedFs::Luks => Some(EncryptionKind::Luks),
-        DetectedFs::Unknown => Some(EncryptionKind::UnrecognizedFilesystem),
         _ => None,
     }
 }
@@ -541,29 +502,30 @@ mod tests {
 
     #[test]
     fn plain_filesystem_media_is_not_flagged_as_encrypted() {
+        use forensicnomicon::volume_encryption::VolumeEncryption;
         // A real FAT32 volume must NOT false-positive as encrypted or unrecognized.
         let img = mbr_disk(1, 0x0B, 2, &fat32_vbr(42));
         assert_eq!(
             parse_boot_sectors(&img).expect("valid MBR").encryption,
             None
         );
-        // The boot-record classifier (GPT path): every encryption kind, plus non-encryption.
-        assert_eq!(classify_encryption(&ntfs_vbr(), DetectedFs::Ntfs), None);
-        assert_eq!(classify_encryption(&[0u8; 4], DetectedFs::AllZeros), None);
+        // The mapping from disk-forensic's pre-decoded volume state to an EncryptionKind.
+        assert_eq!(encryption_of(None, Some(DetectedFs::Ntfs)), None);
+        assert_eq!(encryption_of(None, None), None);
         assert_eq!(
-            classify_encryption(&bitlocker_vbr(), DetectedFs::Unknown),
+            encryption_of(Some(VolumeEncryption::BitLocker), None),
             Some(EncryptionKind::BitLocker)
         );
         assert_eq!(
-            classify_encryption(&to_go_vbr(), DetectedFs::Fat),
+            encryption_of(Some(VolumeEncryption::BitLockerToGo), None),
             Some(EncryptionKind::BitLockerToGo)
         );
         assert_eq!(
-            classify_encryption(&[0u8; 512], DetectedFs::Luks),
+            encryption_of(None, Some(DetectedFs::Luks)),
             Some(EncryptionKind::Luks)
         );
         assert_eq!(
-            classify_encryption(&[0u8; 512], DetectedFs::Unknown),
+            encryption_of(None, Some(DetectedFs::Unknown)),
             Some(EncryptionKind::UnrecognizedFilesystem)
         );
     }
