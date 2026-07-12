@@ -6,6 +6,7 @@ pub mod device_image;
 pub mod emdmgmt;
 pub mod jumplist;
 pub mod lnk;
+pub mod macos_unified_log;
 pub mod macos_usb;
 pub mod mountpoints2;
 pub mod partition_diag;

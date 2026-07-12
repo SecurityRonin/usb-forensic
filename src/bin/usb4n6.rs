@@ -28,10 +28,11 @@ use peripheral_core::setupapi::parse_setupapi;
 use peripheral_core::volume_info::{parse_volume_info_cache, VolumeLabel};
 use std::process::ExitCode;
 use usb_forensic::{
-    audit, parse_boot_sectors, parse_ipod_plist, parse_system_profiler, to_jsonl, AppleDevice,
-    AppleIPodSource, DeviceImage, DeviceImageSource, EmdMgmtSource, HistorySource,
-    JumpListArtifact, JumpListSource, LnkArtifact, LnkSource, MacUsbDevice, MacUsbSource,
-    MountPoints2Source, PartitionDiagSource, PeripheralSource, SourceKind, VolumeCacheSource,
+    audit, parse_boot_sectors, parse_ipod_plist, parse_system_profiler, parse_unified_log,
+    to_jsonl, AppleDevice, AppleIPodSource, DeviceImage, DeviceImageSource, EmdMgmtSource,
+    HistorySource, JumpListArtifact, JumpListSource, LnkArtifact, LnkSource, MacUnifiedLogSource,
+    MacUsbDevice, MacUsbSource, MountPoints2Source, PartitionDiagSource, PeripheralSource,
+    SourceKind, UsbEnumeration, VolumeCacheSource,
 };
 use winevt_extract::{partition_diag, PartitionDiagEvent};
 
@@ -130,6 +131,13 @@ fn is_system_profiler_usb(bytes: &[u8]) -> bool {
     String::from_utf8_lossy(bytes.get(..512).unwrap_or(bytes)).contains("SPUSBDataType")
 }
 
+/// A `log show --style json` capture — a JSON array whose entries are unified-log records
+/// (each carries `"eventType" : "logEvent"`, which sits at the head of the first record).
+fn is_unified_log(bytes: &[u8]) -> bool {
+    let head = String::from_utf8_lossy(bytes.get(..512).unwrap_or(bytes));
+    head.trim_start().starts_with('[') && head.contains("logEvent")
+}
+
 /// A Linux kernel log carries the `New USB device found` enumeration marker that the
 /// syslog reader keys on; setupapi text does not.
 fn looks_like_linux_syslog(text: &str) -> bool {
@@ -164,6 +172,7 @@ struct Ingested {
     device_images: Vec<(DeviceImage, String)>,
     apple_devices: Vec<(Vec<AppleDevice>, String)>,
     mac_usb: Vec<(Vec<MacUsbDevice>, String)>,
+    mac_log: Vec<(Vec<UsbEnumeration>, String)>,
     mounted_volumes: Vec<MountedVolume>,
     user_mounts: Vec<UserMount>,
 }
@@ -187,6 +196,7 @@ impl Ingested {
                 .map(|(d, _)| d.len())
                 .sum::<usize>()
             + self.mac_usb.iter().map(|(d, _)| d.len()).sum::<usize>()
+            + self.mac_log.iter().map(|(d, _)| d.len()).sum::<usize>()
     }
 }
 
@@ -232,6 +242,13 @@ fn ingest(paths: &[&String], year: Option<i64>) -> Option<Ingested> {
                     g.emd_volumes.extend(parse_emdmgmt(&hive, path));
                 }
                 Err(err) => eprintln!("usb4n6: {path}: not a valid registry hive: {err}"),
+            }
+        } else if is_unified_log(&bytes) {
+            let evs = parse_unified_log(&bytes);
+            if evs.is_empty() {
+                eprintln!("usb4n6: {path}: unified log has no USB enumeration events, skipping");
+            } else {
+                g.mac_log.push((evs, (*path).clone()));
             }
         } else if is_system_profiler_usb(&bytes) {
             let devs = parse_system_profiler(&bytes);
@@ -315,6 +332,9 @@ fn run(paths: &[&String], mode: Output, tz_offset: Option<i64>, year: Option<i64
     }
     for (devs, loc) in &g.mac_usb {
         claims.extend(MacUsbSource::new(devs, loc.clone()).claims());
+    }
+    for (evs, loc) in &g.mac_log {
+        claims.extend(MacUnifiedLogSource::new(evs, loc.clone()).claims());
     }
     if let Some(offset) = tz_offset {
         usb_forensic::normalize_local_clocks(&mut claims, offset);

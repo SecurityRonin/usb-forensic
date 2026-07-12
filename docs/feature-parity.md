@@ -75,7 +75,8 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 | Source | OS | Status |
 |---|---|---|
 | `com.apple.iPod.plist` (Apple-device connection history) | macOS | ✅ (`AppleIPodSource` via the `plist` crate; per-device serial, model, last-connected. Tier-1 on a real macOS `com.apple.iPod.plist`) |
-| `system_profiler` / IORegistry (live USB device tree) | macOS | ✅ (`MacUsbSource`: parses `system_profiler -json SPUSBDataType` → serial, VID/PID, model, mass-storage. Tier-1 on a real SanDisk stick plugged into a Mac. Unified-log USBMSC events: follow-up) |
+| `system_profiler` / IORegistry (live USB device tree) | macOS | ✅ (`MacUsbSource`: parses `system_profiler -json SPUSBDataType` → serial, VID/PID, model, mass-storage. Tier-1 on a real SanDisk stick plugged into a Mac) |
+| Unified log (USB enumeration/connection history) | macOS | ✅ (`MacUnifiedLogSource`: parses `log show --style json` `enumerateDeviceComplete` events → VID/PID, name, first/last-connect times. Tier-1 on a real SanDisk stick's live log; VID cross-checks `system_profiler`) |
 | syslog/dmesg kernel USB blocks (journald/GVFS planned) | Linux | ✅ wired end-to-end (`peripheral-core` `linux_syslog`, `--year`); UAC-syslog validated |
 
 ## 5. Output & reporting

@@ -38,6 +38,8 @@ pub enum SourceKind {
     AppleIPod,
     /// macOS `system_profiler` / `IORegistry` — the live USB device tree.
     MacosUsb,
+    /// macOS unified log — USB enumeration (connect) events with times.
+    MacosUnifiedLog,
 }
 
 /// The physical storage container an artifact lives in — the tamper surface.
@@ -84,7 +86,9 @@ impl SourceKind {
             Self::VolumeInfoCache | Self::EmdMgmt => ArtifactContainer::SoftwareHive,
             Self::MountPoints2 => ArtifactContainer::UserHive,
             Self::DeviceImage => ArtifactContainer::DeviceMedia,
-            Self::AppleIPod | Self::MacosUsb => ArtifactContainer::MacosPlist,
+            Self::AppleIPod | Self::MacosUsb | Self::MacosUnifiedLog => {
+                ArtifactContainer::MacosPlist
+            }
         }
     }
 
@@ -216,6 +220,15 @@ mod tests {
             SourceKind::EmdMgmt.container(),
             ArtifactContainer::SoftwareHive
         );
+    }
+
+    #[test]
+    fn macos_unified_log_shares_the_macos_artifact_container() {
+        assert_eq!(
+            SourceKind::MacosUnifiedLog.container(),
+            ArtifactContainer::MacosPlist
+        );
+        assert!(!SourceKind::MacosUnifiedLog.clock_is_local());
     }
 
     #[test]
