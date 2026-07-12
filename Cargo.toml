@@ -76,19 +76,6 @@ resolver = "2"
 # main workspace so it never affects the normal build, MSRV job, or `cargo test`.
 exclude = ["fuzz"]
 
-# usb-forensic is `publish = false`, so it may take forensicnomicon's volume-analysis
-# (`volume_encryption` / `volume_serial`) from git main until forensicnomicon 1.6 publishes.
-# Swap this to the crates.io version once forensicnomicon 1.6 is released.
-[patch.crates-io]
-forensicnomicon = { git = "https://github.com/SecurityRonin/forensicnomicon", branch = "volume-analysis-1.6" }
-# mbr-partition-forensic surfaces per-partition {volume_serial, encryption} on PartitionSummary;
-# use the branch until it publishes, then drop this and bump the dep.
-mbr-partition-forensic = { git = "https://github.com/SecurityRonin/mbr-partition-forensic", branch = "volume-fields" }
-# gpt-partition-{core,forensic} surface the same on GptEntry (the type lives in core, the
-# forensic analyser populates it). Both patched until they publish.
-gpt-partition-core = { git = "https://github.com/SecurityRonin/gpt-partition-forensic", branch = "volume-fields" }
-gpt-partition-forensic = { git = "https://github.com/SecurityRonin/gpt-partition-forensic", branch = "volume-fields" }
-
 # Paranoid Gatekeeper: this crate will consume attacker-controllable, already-decoded
 # USB-history events and correlate them. Never panic, never trust a value.
 [workspace.lints.rust]
