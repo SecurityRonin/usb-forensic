@@ -41,10 +41,17 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - PRD: prd.md
   - Feature Parity: feature-parity.md
   - Competitive Landscape: competitive-landscape.md
   - Roadmap: roadmap.md
   - Validation: validation.md
+  - Decisions:
+      - Overview: decisions/README.md
+      - 0001 Correlation model: decisions/0001-correlation-and-consistency-model.md
+      - 0002 Delegate parsing: decisions/0002-delegate-parsing-to-fleet-crates.md
+      - 0003 Volume analysis: decisions/0003-scheme-agnostic-volume-analysis.md
+      - 0004 BitLocker To Go: decisions/0004-bitlocker-to-go-detection.md
   - Privacy Policy: privacy.md
   - Terms of Service: terms.md
 
