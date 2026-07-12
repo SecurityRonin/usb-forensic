@@ -60,6 +60,7 @@ pub use sources::device_image::{
 };
 pub use sources::emdmgmt::EmdMgmtSource;
 pub use sources::jumplist::{JumpListArtifact, JumpListSource};
+pub use sources::kernel_pnp::{kernel_pnp_events, KernelPnpEvent, KernelPnpSource};
 pub use sources::lnk::{LnkArtifact, LnkSource};
 pub use sources::macos_unified_log::{parse_unified_log, MacUnifiedLogSource, UsbEnumeration};
 pub use sources::macos_usb::{parse_system_profiler, MacUsbDevice, MacUsbSource};
