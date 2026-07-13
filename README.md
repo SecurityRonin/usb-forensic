@@ -1,6 +1,9 @@
 # usb-forensic
 
+[![Crates.io](https://img.shields.io/crates/v/usb-forensic.svg)](https://crates.io/crates/usb-forensic)
+[![Docs.rs](https://img.shields.io/docsrs/usb-forensic)](https://docs.rs/usb-forensic)
 [![CI](https://github.com/SecurityRonin/usb-forensic/actions/workflows/ci.yml/badge.svg)](https://github.com/SecurityRonin/usb-forensic/actions)
+[![Release](https://github.com/SecurityRonin/usb-forensic/actions/workflows/release.yml/badge.svg)](https://github.com/SecurityRonin/usb-forensic/actions/workflows/release.yml)
 [![Rust 1.96+](https://img.shields.io/badge/rust-1.96%2B-orange.svg)](https://www.rust-lang.org)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
@@ -8,7 +11,7 @@
 
 **The first USB-history correlation engine built for pipelines and courtrooms rather than a viewer window — USB Detective-grade Windows artifact depth, running headless on any OS at fleet scale, with every timestamp traceable to its raw bytes and every conclusion re-derivable by anyone, including the other side's expert.**
 
-> **Status: pre-release.** The correlation core and **13 source adapters** run and are
+> **Status: 0.1.0 — first release.** The correlation core and **13 source adapters** run and are
 > tested — every Windows registry source (`Enum\{USBSTOR,SCSI,USB}`, `MountedDevices`,
 > `VolumeInfoCache`, `MountPoints2`, `EMDMgmt`), `setupapi.dev.log`, the Partition/Diagnostic
 > and Kernel-PnP event logs, device-image boot sectors (MBR/GPT via `disk-forensic`; FAT
@@ -18,13 +21,12 @@
 > Correctness is Tier-1 validated against independent oracles on real corpora (NIST CFReDS,
 > Stolen Szechuan Sauce, real macOS devices) — see [`docs/validation.md`](docs/validation.md).
 > The parity matrix stands at **45 done / 13 remaining** ([`docs/feature-parity.md`](docs/feature-parity.md)),
-> the remaining items mostly blocked on a specific corpus or oracle. `Cargo.toml` keeps
-> `publish = false` until the differential (USB Detective / RegRipper) corpus lands;
-> crates.io / docs.rs / coverage badges join then.
+> the remaining items mostly blocked on a specific corpus or oracle.
 
 ## Run it
 
 ```console
+$ cargo install usb-forensic          # installs the usb4n6 binary
 $ usb4n6 path/to/setupapi.dev.log path/to/RecentItem.lnk
 {"device":"7&12a3b4c5&0&0000","attributes":[{"attribute":"FirstConnected","consistency":"SingleSource","values":[{"value":{"Timestamp":1681760520},"provenance":{"source":"SetupApi","locator":"setupapi.dev.log:27"}}]}]}
 {"device":"DEAD-BEEF","attributes":[{"attribute":"AccessedFile","consistency":"SingleSource","values":[{"value":{"Text":"E:\\payload.exe"},"provenance":{"source":"Lnk","locator":"RecentItem.lnk"}}]}]}
