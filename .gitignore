@@ -2,8 +2,6 @@
 /target
 **/*.rs.bk
 Cargo.lock.bak
-# Library crate: resolve the graph fresh (do NOT commit the lock for a lib)
-Cargo.lock
 
 # MkDocs build output
 /site

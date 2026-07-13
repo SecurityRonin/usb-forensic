@@ -1,6 +1,6 @@
 [package]
 name = "usb-forensic"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.96.0"
 license = "Apache-2.0"
@@ -12,10 +12,6 @@ documentation = "https://docs.rs/usb-forensic"
 readme = "README.md"
 keywords = ["forensics", "dfir", "usb", "incident-response", "timeline"]
 categories = ["parser-implementations", "command-line-utilities"]
-# Working alpha (core + setupapi/LNK sources + usb4n6 CLI run and are tested). Keep
-# unpublished until the registry source lands (peripheral-core 0.2) and validation is
-# release-ready, then set a real version (0.1.0) and remove this. See README "Status".
-publish = false
 exclude = [
     "/.github",
     "/docs",
