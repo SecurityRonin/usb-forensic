@@ -85,7 +85,18 @@ fn driver_framework_event(record: &serde_json::Value) -> Option<DriverFrameworkE
 /// `UMDFHostDeviceRequest` for 2100–2102); rather than hard-code the name, take the first
 /// child and read its `instance` attribute (real form) or `InstanceId` element (map form).
 fn instance_id(record: &serde_json::Value) -> Option<String> {
-    let _ = record; // RED stub — no extraction yet
+    let user_data = record.pointer("/Event/UserData")?.as_object()?;
+    for child in user_data.values() {
+        if let Some(v) = child
+            .pointer("/#attributes/instance")
+            .and_then(serde_json::Value::as_str)
+        {
+            return Some(v.to_string());
+        }
+        if let Some(v) = child.get("InstanceId").and_then(serde_json::Value::as_str) {
+            return Some(v.to_string());
+        }
+    }
     None
 }
 
@@ -122,8 +133,38 @@ impl<'a> DriverFrameworkSource<'a> {
 
 impl HistorySource for DriverFrameworkSource<'_> {
     fn claims(&self) -> Vec<Claim> {
-        let _ = &self.events; // RED stub — no claim mapping yet
-        Vec::new()
+        let mut out = Vec::new();
+        for event in self.events {
+            // Key by the last '\'-component of the instance id — the instance serial —
+            // identical to the registry / Kernel-PnP keying, so this corroborates them.
+            let start = event.instance_id.rfind('\\').map_or(0, |i| i + 1);
+            let serial = &event.instance_id[start..];
+            if serial.is_empty() {
+                continue;
+            }
+            let Ok(when) = event.timestamp.parse::<jiff::Timestamp>() else {
+                continue;
+            };
+            // 2003 arrival → connected; 2102 final removal → removed.
+            let attribute = if event.event_id == DISCONNECT_EVENT_ID {
+                Attribute::LastRemoved
+            } else {
+                Attribute::LastConnected
+            };
+            out.push(Claim {
+                device: DeviceKey(serial.to_string()),
+                attribute,
+                value: Value::Timestamp(when.as_second()),
+                provenance: Provenance {
+                    source: SourceKind::DriverFramework,
+                    locator: format!(
+                        "Microsoft-Windows-DriverFrameworks-UserMode/Operational#{} {}",
+                        event.event_id, event.instance_id
+                    ),
+                },
+            });
+        }
+        out
     }
 }
 
@@ -217,6 +258,25 @@ mod tests {
             events[0].instance_id,
             "USBSTOR\\Disk&Ven_SanDisk&Prod_Cruzer&Rev_1.00\\4C530000261130109435&0"
         );
+    }
+
+    #[test]
+    fn a_userdata_child_with_no_instance_field_yields_no_event() {
+        // UserData present but the child carries neither an `instance` attribute nor an
+        // `InstanceId` element — nothing to key on, so the record is dropped.
+        let rec = json!({
+            "Event": {
+                "System": {
+                    "Provider": { "#attributes": { "Name": "Microsoft-Windows-DriverFrameworks-UserMode" } },
+                    "EventID": 2003,
+                    "TimeCreated": { "#attributes": { "SystemTime": "2020-09-19T04:36:42Z" } }
+                },
+                "UserData": {
+                    "UMDFHostDeviceArrivalBegin": { "LifetimeId": "{guid}" }
+                }
+            }
+        });
+        assert!(driver_framework_events([rec]).is_empty());
     }
 
     #[test]
