@@ -23,6 +23,10 @@ pub enum SourceKind {
     /// Microsoft-Windows-Kernel-PnP/Configuration event log — USB device-configuration
     /// events (a connection witness keyed by the device instance serial).
     KernelPnp,
+    /// Microsoft-Windows-DriverFrameworks-UserMode/Operational event log — UMDF device
+    /// arrival (EID 2003, connect) and final removal (EID 2102, disconnect), keyed by the
+    /// device instance serial. Disabled by default on Win8+, so present only when enabled.
+    DriverFramework,
     /// A Windows Shell Link (`.lnk`) — the volume-serial file join.
     Lnk,
     /// A Windows Jump List (`*.automaticDestinations-ms` / `*.customDestinations-ms`).
@@ -83,7 +87,9 @@ impl SourceKind {
         match self {
             Self::Usbstor | Self::MountedDevices => ArtifactContainer::SystemHive,
             Self::SetupApi => ArtifactContainer::SetupApiLog,
-            Self::PartitionDiag | Self::KernelPnp => ArtifactContainer::EventLog,
+            Self::PartitionDiag | Self::KernelPnp | Self::DriverFramework => {
+                ArtifactContainer::EventLog
+            }
             Self::Lnk | Self::JumpList => ArtifactContainer::LnkFile,
             Self::LinuxKernelLog => ArtifactContainer::KernelLog,
             Self::VolumeInfoCache | Self::EmdMgmt => ArtifactContainer::SoftwareHive,

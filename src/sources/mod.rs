@@ -3,6 +3,7 @@
 
 pub mod apple_ipod;
 pub mod device_image;
+pub mod driver_framework;
 pub mod emdmgmt;
 pub mod jumplist;
 pub mod kernel_pnp;
