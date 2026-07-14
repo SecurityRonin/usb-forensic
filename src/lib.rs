@@ -58,6 +58,9 @@ pub use sources::device_image::{
     analyse_device_image, export_mbr_hex, parse_boot_sectors, DeviceImage, DeviceImageSource,
     EncryptionKind,
 };
+pub use sources::driver_framework::{
+    driver_framework_events, DriverFrameworkEvent, DriverFrameworkSource,
+};
 pub use sources::emdmgmt::EmdMgmtSource;
 pub use sources::jumplist::{JumpListArtifact, JumpListSource};
 pub use sources::kernel_pnp::{kernel_pnp_events, KernelPnpEvent, KernelPnpSource};
