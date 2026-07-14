@@ -42,7 +42,8 @@ Tracker / USBFT** (breadth: multi-OS, image mounting, VSCs, encrypted-volume his
 | SetupAPI (`setupapi.dev.log`) | first-install time (local, TZ-normalized) | all dedicated | ✅ (`PeripheralSource`) |
 | Linux kernel log (`syslog`/`dmesg`) | USB enumeration (VID/PID, serial, first-seen) | USBFT (parses) | ✅ (`PeripheralSource` via `peripheral-core` `linux_syslog`; UAC-syslog validated) |
 | Partition/Diagnostic event log | volume serial numbers, connect events | USB Detective | ✅ (`PartitionDiagSource` via `winevt-extract` 0.3 EID-1006 extractor; disk-arrival connect events, Tier-1 on the real DFIRArtifactMuseum `.evtx`. Volume-serial VBR decode: follow-up) |
-| Other USB event-log providers (Kernel-PnP, DriverFrameworks-UserMode, Ntfs) | connect/disconnect, mount | RegRipper/KAPE workflows | 📋 |
+| Kernel-PnP event log | device connect/install (EID 400/410/430) | RegRipper/KAPE workflows | ✅ (`KernelPnpSource` via `evtx` + `winevt-extract`; keyed by device-instance serial, Tier-1 on the real Stolen Szechuan `.evtx`) |
+| Other USB event-log providers (DriverFrameworks-UserMode, Ntfs) | connect/disconnect, mount | RegRipper/KAPE workflows | 📋 |
 | LNK files | files opened on device (volume-serial join) | USB Detective, USBFT | ✅ (`LnkSource`) |
 | Jump Lists | recent items per app on device | USB Detective | ✅ (`JumpListSource`, MRU access times) |
 | ShellBags | folders browsed on device | USB Detective, USBFT | 📋 |
@@ -98,7 +99,7 @@ sources cannot support one (see [roadmap](roadmap.md) Phase 3).
 
 | Property | Status |
 |---|---|
-| Single static binary, no runtime deps, `cargo install` | 🏗 (`usb4n6` builds & runs; `cargo install` at publish) |
+| Single static binary, no runtime deps, `cargo install` | ✅ (`cargo install usb-forensic` installs the `usb4n6` binary; published 0.1.0, install-verified) |
 | Library-embeddable (used by Issen / other fleet crates) | ✅ (this crate) |
 | `#![forbid(unsafe_code)]`, panic-free (unwrap/expect denied) | ✅ |
 | 100% line coverage gate | ✅ |

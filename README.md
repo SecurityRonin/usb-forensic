@@ -20,7 +20,7 @@
 > `--files`, `--report`, `--docx`, and `--pdf`; six `forensicnomicon` finding types.
 > Correctness is Tier-1 validated against independent oracles on real corpora (NIST CFReDS,
 > Stolen Szechuan Sauce, real macOS devices) — see [`docs/validation.md`](docs/validation.md).
-> The parity matrix stands at **45 done / 13 remaining** ([`docs/feature-parity.md`](docs/feature-parity.md)),
+> The parity matrix stands at **46 done / 14 remaining** ([`docs/feature-parity.md`](docs/feature-parity.md)),
 > the remaining items mostly blocked on a specific corpus or oracle.
 
 ## Run it

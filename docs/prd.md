@@ -124,7 +124,7 @@ examiner weigh that.
 
 The authoritative status is in [`feature-parity.md`](feature-parity.md), which tracks
 every capability against the reference tools. The parity matrix currently stands at
-**45 done, 13 remaining**. Remaining items are mostly blocked on a specific corpus or
+**46 done, 14 remaining**. Remaining items are mostly blocked on a specific corpus or
 an external oracle rather than on unwritten code; each is noted in the matrix and the
 [roadmap](roadmap.md). What follows summarizes scope without duplicating that matrix.
 
