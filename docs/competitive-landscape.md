@@ -17,10 +17,11 @@ history as one small module. Its closest real competitors are **USB Forensic Tra
 a lesser degree, **USB Historian**. Against the big suites it wins on depth and
 timestamp-defensibility but loses on breadth.
 
-**Pricing caveat up front:** USB Detective Professional has **no public price** (routes to
-an Avangate checkout, enterprise/LE quotes on request). The suite prices below are
-directional from market write-ups, not vendor-confirmed. The free tools are confirmed
-free.
+**Pricing caveat up front:** USB Detective Professional is **USD $499** per single-user
+licence (observed at the Avangate checkout, July 2026; the vendor lists no price on-site and
+routes to that checkout, with enterprise/LE quotes on request). Other suite prices below are
+directional from market write-ups, not vendor-confirmed. The free tools — including USB
+Detective Community edition — are confirmed free.
 
 ## USB Detective — the reference product
 
@@ -59,8 +60,8 @@ Community); and (Professional) mounted forensic images and Volume Shadow Copies.
 4. **OS-aware querying** and **timezone normalization** (local ↔ UTC).
 
 **Editions** — **Community** (free; files/folders and logical drives, SYSTEM/SOFTWARE/
-NTUSER, SetupAPI; non-commercial). **Professional** (paid; image/VSC and live processing,
-commercial use, advanced correlation, LNK/jump-list, timelines; **price not public**).
+NTUSER, SetupAPI; non-commercial). **Professional** (**USD $499** single-user; image/VSC and
+live processing, commercial use, advanced correlation, LNK/jump-list, timelines).
 Output: Excel high-level and verbose reports, plus per-device/aggregate timelines.
 
 ## Competitors (most comparable first)
@@ -125,11 +126,12 @@ with," never "spoofed"); the engine can't generalize past USB.
 
 ## Gaps, notes and uncertainties
 
-- **Pricing is the weakest-verified area.** USB Detective Professional: no public price
-  (Avangate + quote-on-request). Suite prices (AXIOM, X-Ways, EnCase, Cellebrite,
-  Belkasoft) are quote-based and shift yearly; tiers above are directional from market
-  write-ups, **not vendor-confirmed**. Free tools (USBFT, USB Historian, USBDeview,
-  USBLogView, KAPE/RegRipper, Velociraptor, Autopsy) are confirmed free.
+- **Pricing is the weakest-verified area.** USB Detective Professional: **USD $499**
+  single-user (Avangate checkout, observed July 2026; the vendor lists no price on-site).
+  Suite prices (AXIOM, X-Ways, EnCase, Cellebrite, Belkasoft) are quote-based and shift
+  yearly; tiers above are directional from market write-ups, **not vendor-confirmed**. Free
+  tools (USBFT, USB Historian, USBDeview, USBLogView, KAPE/RegRipper, Velociraptor, Autopsy)
+  are confirmed free.
 - **Head-to-head worth citing:** [HackMag's USB Forensics Showdown](https://hackmag.com/devops/usb-forensic-battle)
   tested USBFT vs USB Detective vs USBDeview on one machine — USBFT faster and
   broadest-source; USB Detective favoured when you want aggregated data with calculated
