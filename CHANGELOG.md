@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/SecurityRonin/usb-forensic/compare/usb-forensic-v0.1.0...usb-forensic-v0.2.0) - 2026-07-24
+
+### Added
+
+- *(usb4n6)* wire DriverFrameworks source into the pipeline + docs
+- *(driver-framework)* GREEN — DriverFrameworks-UserMode source
+
+### Documentation
+
+- correct stale parity markers after 0.1.0
+
 Pre-code design seed. The repository holds the validated product thesis, the
 competitive landscape, and the build roadmap; it is scaffolded to the SecurityRonin
 fleet standard (CI, panic-free lints, supply-chain gates, MkDocs site) but carries no
