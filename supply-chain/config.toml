@@ -17,7 +17,7 @@ url = "https://raw.githubusercontent.com/google/rust-crate-audits/main/audits.to
 url = "https://raw.githubusercontent.com/mozilla/supply-chain/main/audits.toml"
 
 [policy.usb-forensic]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [[exemptions.ahash]]
 version = "0.8.12"
@@ -701,10 +701,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.unicode-ident]]
 version = "1.0.24"
-criteria = "safe-to-deploy"
-
-[[exemptions.usb-forensic]]
-version = "0.1.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.utf16-simd]]
