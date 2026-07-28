@@ -40,9 +40,47 @@ impl<'a> ShellbagSource<'a> {
 
 impl HistorySource for ShellbagSource<'_> {
     fn claims(&self) -> Vec<Claim> {
-        // Stubbed for the RED phase.
-        Vec::new()
+        let mut out = Vec::new();
+        for entry in self.entries {
+            push_entry_claims(entry, &mut out);
+        }
+        out
     }
+}
+
+/// Emit the drive-letter join + browsed-folder claims for one shellbag entry. An
+/// entry with no clean drive letter carries no join key (mirrors an LNK with a `0`
+/// volume serial), so it contributes nothing.
+fn push_entry_claims(entry: &ShellbagEntry, out: &mut Vec<Claim>) {
+    let Some(letter) = entry.drive_letter else {
+        return;
+    };
+    let drive = format!("{letter}:");
+    let device = DeviceKey(drive.clone());
+    let provenance = Provenance {
+        source: SourceKind::Shellbag,
+        locator: entry
+            .source
+            .key_path
+            .clone()
+            .unwrap_or_else(|| entry.source.file.clone()),
+    };
+
+    // The drive letter itself — the matchable join key (mirrors LnkSource emitting
+    // its VolumeSerial). Key == value marks a pseudo-device, not a carrier assertion,
+    // so reconcile leaves the seeding to a physical source's DriveLetter claim.
+    out.push(Claim {
+        device: device.clone(),
+        attribute: Attribute::DriveLetter,
+        value: Value::Text(drive),
+        provenance: provenance.clone(),
+    });
+    out.push(Claim {
+        device,
+        attribute: Attribute::BrowsedFolder,
+        value: Value::Text(entry.path.clone()),
+        provenance,
+    });
 }
 
 #[cfg(test)]
