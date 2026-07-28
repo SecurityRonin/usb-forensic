@@ -70,6 +70,7 @@ pub use sources::macos_usb::{parse_system_profiler, MacUsbDevice, MacUsbSource};
 pub use sources::mountpoints2::MountPoints2Source;
 pub use sources::partition_diag::PartitionDiagSource;
 pub use sources::peripheral::PeripheralSource;
+pub use sources::shellbag::ShellbagSource;
 pub use sources::volume_cache::VolumeCacheSource;
 pub use timeline::{super_timeline, timeline_to_jsonl, TimelineEvent};
 pub use tz::normalize_local_clocks;

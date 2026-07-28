@@ -13,4 +13,5 @@ pub mod macos_usb;
 pub mod mountpoints2;
 pub mod partition_diag;
 pub mod peripheral;
+pub mod shellbag;
 pub mod volume_cache;

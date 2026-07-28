@@ -37,6 +37,9 @@ pub enum SourceKind {
     VolumeInfoCache,
     /// `NTUSER\...\Explorer\MountPoints2` — per-user volume mounts (by volume GUID).
     MountPoints2,
+    /// `NTUSER`/`UsrClass` `...\Shell\BagMRU` (ShellBags) — per-user folders browsed
+    /// in Explorer, keyed by the drive letter the folder lived on.
+    Shellbag,
     /// `SOFTWARE\...\EMDMgmt` — the `ReadyBoost` cache: volume label + serial history.
     EmdMgmt,
     /// A raw disk image of a physical device — its MBR/VBR boot sectors.
@@ -93,7 +96,7 @@ impl SourceKind {
             Self::Lnk | Self::JumpList => ArtifactContainer::LnkFile,
             Self::LinuxKernelLog => ArtifactContainer::KernelLog,
             Self::VolumeInfoCache | Self::EmdMgmt => ArtifactContainer::SoftwareHive,
-            Self::MountPoints2 => ArtifactContainer::UserHive,
+            Self::MountPoints2 | Self::Shellbag => ArtifactContainer::UserHive,
             Self::DeviceImage => ArtifactContainer::DeviceMedia,
             Self::AppleIPod | Self::MacosUsb | Self::MacosUnifiedLog => {
                 ArtifactContainer::MacosPlist
@@ -131,6 +134,11 @@ pub enum Attribute {
     VolumeSerial,
     /// A file accessed from the device (e.g. an LNK target) — the file-to-device link.
     AccessedFile,
+    /// A directory browsed on the device in Explorer (a ShellBags `BagMRU` folder) —
+    /// corroborates the volume was mounted and names a directory touched on it.
+    /// Distinct from [`AccessedFile`](Self::AccessedFile): a folder browsed, not a
+    /// file opened.
+    BrowsedFolder,
     /// A drive letter the device's volume was mounted as (e.g. `E:`), from the
     /// `MountedDevices` drive-letter↔device join.
     DriveLetter,
