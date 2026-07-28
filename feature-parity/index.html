@@ -1,0 +1,1540 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://securityronin.github.io/usb-forensic/feature-parity/">
+      
+      
+        <link rel="prev" href="../prd/">
+      
+      
+        <link rel="next" href="../competitive-landscape/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Feature Parity - usb-forensic</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#feature-parity-matrix" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="usb-forensic" class="md-header__button md-logo" aria-label="usb-forensic" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            usb-forensic
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Feature Parity
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/SecurityRonin/usb-forensic" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    SecurityRonin/usb-forensic
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../prd/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  PRD
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Feature Parity
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../competitive-landscape/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Competitive Landscape
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../roadmap/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../validation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Validation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../decisions/" class="md-tabs__link">
+          
+  
+  
+  Decisions
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../privacy/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Privacy Policy
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../terms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Terms of Service
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="usb-forensic" class="md-nav__button md-logo" aria-label="usb-forensic" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    usb-forensic
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/SecurityRonin/usb-forensic" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    SecurityRonin/usb-forensic
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PRD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Parity
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Parity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-input-acquisition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Input &amp; acquisition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-windows-artifact-coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Windows artifact coverage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-correlation-scoring-the-moat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Correlation &amp; scoring (the moat)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-cross-platform-evidence-usbft-breadth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Cross-platform evidence (USBFT breadth)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-output-reporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Output &amp; reporting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-engineering-posture-the-fleet-differentiators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Engineering posture (the fleet differentiators)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../competitive-landscape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Competitive Landscape
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/0001-correlation-and-consistency-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0001 Correlation model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/0002-delegate-parsing-to-fleet-crates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0002 Delegate parsing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/0003-scheme-agnostic-volume-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0003 Volume analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/0004-bitlocker-to-go-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0004 BitLocker To Go
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../privacy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Privacy Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terms of Service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-input-acquisition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Input &amp; acquisition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-windows-artifact-coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Windows artifact coverage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-correlation-scoring-the-moat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Correlation &amp; scoring (the moat)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-cross-platform-evidence-usbft-breadth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Cross-platform evidence (USBFT breadth)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-output-reporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Output &amp; reporting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-engineering-posture-the-fleet-differentiators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Engineering posture (the fleet differentiators)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="feature-parity-matrix">Feature-Parity Matrix<a class="headerlink" href="#feature-parity-matrix" title="Permanent link">&para;</a></h1>
+<p>The goal: the most comprehensive USB-device-history analyzer available — matching or
+exceeding every dedicated competitor, then adding the pipeline/reproducibility wedge no
+incumbent has. This page is the <strong>authoritative checklist</strong>: every row is a capability
+one of the reference tools ships, and the status column tracks <code>usb-forensic</code> against it.</p>
+<p>Status legend: ✅ implemented &amp; tested · 🏗 build in progress · 📋 planned · — not applicable.
+No cell is marked ✅ until it is implemented <strong>and</strong> validated against an independent
+oracle (see <a href="../validation/">validation</a>).</p>
+<p>Reference tools absorbed: <strong>USB Detective</strong> (the depth/scoring leader), <strong>USB Forensic
+Tracker / USBFT</strong> (breadth: multi-OS, image mounting, VSCs, encrypted-volume history),
+<strong>USB Historian</strong>, <strong>USBDeview</strong>, <strong>KAPE + RegRipper / Registry Explorer</strong>.</p>
+<h2 id="1-input-acquisition">1. Input &amp; acquisition<a class="headerlink" href="#1-input-acquisition" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Seen in</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Live system processing</td>
+<td>USB Detective, USBFT, USBDeview</td>
+<td>📋</td>
+</tr>
+<tr>
+<td>Individual files / folders of extracted artifacts</td>
+<td>all</td>
+<td>🏗 (core accepts decoded records)</td>
+</tr>
+<tr>
+<td>Logical drives</td>
+<td>USB Detective, USBFT</td>
+<td>📋</td>
+</tr>
+<tr>
+<td>Mounted forensic images (E01/raw/…)</td>
+<td>USB Detective (Pro), USBFT</td>
+<td>✅ (raw disk images and <code>EnCase</code> E01 read directly by <code>usb4n6</code> — MBR disk signature + FAT volume serial. Tier-1 on the real CFReDS RM#2 stick, raw and E01)</td>
+</tr>
+<tr>
+<td>Built-in image mounting (no external mounter)</td>
+<td>USBFT (Arsenal Image Mounter)</td>
+<td>✅ (<code>usb4n6</code> reads an <code>EnCase</code> E01 directly via the <code>ewf</code> crate — no ewfmount/TSK. Tier-1 on the real CFReDS rm2 stick E01: decodes the same disk sig E221-034C / FAT serial B4D8-5399 as the raw extraction)</td>
+</tr>
+<tr>
+<td>Volume Shadow Copies — auto-aggregated</td>
+<td>USB Detective, USBFT</td>
+<td>📋 (fleet <code>[H]</code> VSS layer)</td>
+</tr>
+<tr>
+<td>Registry transaction-log replay (uncommitted data)</td>
+<td>USB Detective</td>
+<td>📋</td>
+</tr>
+<tr>
+<td>Remote-machine enumeration</td>
+<td>USBDeview</td>
+<td>📋</td>
+</tr>
+<tr>
+<td>Cross-platform runtime (analyze from any OS)</td>
+<td>USBFT (parses), — (none scores)</td>
+<td>🏗 (Rust, OS-agnostic)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-windows-artifact-coverage">2. Windows artifact coverage<a class="headerlink" href="#2-windows-artifact-coverage" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Artifact</th>
+<th>Signal</th>
+<th>Seen in</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>USBSTOR</code> (SYSTEM)</td>
+<td>device class/serial/VID-PID, first/last connect</td>
+<td>all dedicated</td>
+<td>✅ (<code>PeripheralSource</code> via <code>peripheral-core</code> registry reader; regipy-validated)</td>
+</tr>
+<tr>
+<td><code>Enum\USB</code> (SYSTEM)</td>
+<td>parent USB device, container id</td>
+<td>USB Detective, RegRipper</td>
+<td>✅ (same reader)</td>
+</tr>
+<tr>
+<td><strong><code>Enum\SCSI</code></strong> (UASP / USB-3 drives)</td>
+<td>modern drives absent from <code>USBSTOR</code></td>
+<td>(gap in most)</td>
+<td>✅ (same reader; Szechuan VMware disk validated)</td>
+</tr>
+<tr>
+<td><code>MountedDevices</code> (SYSTEM)</td>
+<td>drive-letter ↔ device mapping</td>
+<td>USB Detective, USBFT, RegRipper</td>
+<td>✅ (<code>peripheral-core</code> 0.3 decodes device-path entries → <code>DriveLetter</code> claim; Szechuan <code>D:</code>→CD-ROM validated)</td>
+</tr>
+<tr>
+<td>MTP/PTP portable devices (phones/tablets/cameras)</td>
+<td>MTP/PTP endpoints not under USBSTOR</td>
+<td>USB Detective, USBFT</td>
+<td>✅ (<code>peripheral-core</code> 0.8 classifies <code>Enum\USB</code> devices whose <code>Service</code> is <code>WUDFWpdMtp</code> as <code>Bus::Mtp</code>; usb-forensic emits a <code>DeviceClass=MTP</code> claim + a Low <code>USB-MTP-DEVICE</code> finding, MITRE T1052.001. Spec rule; real-data negative control on CFReDS)</td>
+</tr>
+<tr>
+<td><code>VolumeInfoCache</code> + <code>EMDMgmt</code> (SOFTWARE)</td>
+<td>volume label ↔ serial history</td>
+<td>USB Detective</td>
+<td>✅ (<code>VolumeCacheSource</code> (label by drive letter) + <code>EmdMgmtSource</code> (label + 4-byte volume serial, the LNK <code>DriveSerialNumber</code> join key) via <code>peripheral-core</code> 0.4/0.7. Tier-1 on the real NIST CFReDS SOFTWARE hive: <code>Authorized USB</code>/1551191358 and <code>IAMAN $_@</code>/2657770370, matching the answer key)</td>
+</tr>
+<tr>
+<td><code>MountPoints2</code> (NTUSER.DAT)</td>
+<td>per-user mounts</td>
+<td>USB Detective, USBFT, RegRipper</td>
+<td>✅ (<code>MountPoints2Source</code> via <code>peripheral-core</code> 0.6; per-user volume-GUID mount + time, unified with the drive letter &amp; label by the MountedDevices MBR-signature bridge. Tier-1 on the real NIST CFReDS: informant mounted <code>{a2f2048e}</code> = E: = <code>IAMAN $_@</code> at 2015-03-24 21:02:33)</td>
+</tr>
+<tr>
+<td><code>Amcache.hve</code></td>
+<td>execution / first-seen corroboration</td>
+<td>USB Detective</td>
+<td>📋</td>
+</tr>
+<tr>
+<td>SetupAPI (<code>setupapi.dev.log</code>)</td>
+<td>first-install time (local, TZ-normalized)</td>
+<td>all dedicated</td>
+<td>✅ (<code>PeripheralSource</code>)</td>
+</tr>
+<tr>
+<td>Linux kernel log (<code>syslog</code>/<code>dmesg</code>)</td>
+<td>USB enumeration (VID/PID, serial, first-seen)</td>
+<td>USBFT (parses)</td>
+<td>✅ (<code>PeripheralSource</code> via <code>peripheral-core</code> <code>linux_syslog</code>; UAC-syslog validated)</td>
+</tr>
+<tr>
+<td>Partition/Diagnostic event log</td>
+<td>volume serial numbers, connect events</td>
+<td>USB Detective</td>
+<td>✅ (<code>PartitionDiagSource</code> via <code>winevt-extract</code> 0.3 EID-1006 extractor; disk-arrival connect events, Tier-1 on the real DFIRArtifactMuseum <code>.evtx</code>. Volume-serial VBR decode: follow-up)</td>
+</tr>
+<tr>
+<td>Kernel-PnP event log</td>
+<td>device connect/install (EID 400/410/430)</td>
+<td>RegRipper/KAPE workflows</td>
+<td>✅ (<code>KernelPnpSource</code> via <code>evtx</code> + <code>winevt-extract</code>; keyed by device-instance serial, Tier-1 on the real Stolen Szechuan <code>.evtx</code>)</td>
+</tr>
+<tr>
+<td>DriverFrameworks-UserMode event log</td>
+<td>device arrival (EID 2003 → connect) + final removal (EID 2102 → disconnect)</td>
+<td>RegRipper/KAPE workflows</td>
+<td>✅ (<code>DriverFrameworkSource</code>; keyed by instance serial, EID 2102 populates <code>LastRemoved</code>. Spec-validated against two authoritative field maps — EvtxECmd + rvt2; corpus-validation pending a real <code>.evtx</code> (the log is disabled by default, so no public ground-truth corpus ships it — env-gated real test ready)</td>
+</tr>
+<tr>
+<td>Other USB event-log providers (Ntfs/Operational)</td>
+<td>volume mount</td>
+<td>RegRipper/KAPE workflows</td>
+<td>📋</td>
+</tr>
+<tr>
+<td>LNK files</td>
+<td>files opened on device (volume-serial join)</td>
+<td>USB Detective, USBFT</td>
+<td>✅ (<code>LnkSource</code>)</td>
+</tr>
+<tr>
+<td>Jump Lists</td>
+<td>recent items per app on device</td>
+<td>USB Detective</td>
+<td>✅ (<code>JumpListSource</code>, MRU access times)</td>
+</tr>
+<tr>
+<td>ShellBags</td>
+<td>folders browsed on device</td>
+<td>USB Detective, USBFT</td>
+<td>📋</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-correlation-scoring-the-moat">3. Correlation &amp; scoring (the moat)<a class="headerlink" href="#3-correlation-scoring-the-moat" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Seen in</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Merge all sources into one per-device record</td>
+<td>USB Detective</td>
+<td>✅ (<code>correlate</code> / <code>correlate_sources</code>)</td>
+</tr>
+<tr>
+<td>Cross-source timestamp comparison per attribute</td>
+<td>USB Detective</td>
+<td>✅ core primitive (<code>Consistency</code>)</td>
+</tr>
+<tr>
+<td>Consistency grading (corroborated / conflicting / single-source)</td>
+<td>USB Detective (colour-coded)</td>
+<td>✅ <code>Consistency</code></td>
+</tr>
+<tr>
+<td>Anti-forensics / tampering leads (impossible timestamp ordering)</td>
+<td>USB Detective (timestamp scoring)</td>
+<td>✅ (<code>audit</code> <code>USB-IMPOSSIBLE-ORDERING</code>: first-connect after last-connect → MITRE T1070.006)</td>
+</tr>
+<tr>
+<td>Per-value source provenance retained</td>
+<td>USB Detective</td>
+<td>✅ (<code>ProvenancedValue</code>: source + locator)</td>
+</tr>
+<tr>
+<td>Reproducibility chain (raw bytes → decoding rule per value)</td>
+<td>(none)</td>
+<td>📋 the wedge</td>
+</tr>
+<tr>
+<td>Deleted / removed-device recovery (Win10 cleanup)</td>
+<td>USB Detective</td>
+<td>📋</td>
+</tr>
+<tr>
+<td>Prior volume names/serials for formatted devices</td>
+<td>USB Detective</td>
+<td>✅ (<code>USB-VOLUME-REFORMATTED</code> finding: a label seen with ≥2 distinct volume serials → reformatted-and-reused, MITRE T1070.004. Tier-1 on the real CFReDS hive: 'IAMAN \$_@' = serials 9E6A-5B82 + B4D8-5399)</td>
+</tr>
+<tr>
+<td>Device/volume encryption-type detection</td>
+<td>USB Detective</td>
+<td>✅ (BitLocker via the <code>-FVE-FS-</code> VBR signature read from a device image → <code>Encryption</code> attribute + <code>USB-VOLUME-ENCRYPTED</code> finding. Spec-defined rule (Tier-3); validated against a signature fixture AND the real CFReDS FAT stick as a non-false-positive)</td>
+</tr>
+<tr>
+<td>Encrypted-container detection (VeraCrypt/TrueCrypt/unrecognized-FS)</td>
+<td>USBFT</td>
+<td>✅ (device-image VBR with no known filesystem signature → <code>unrecognized-filesystem (possible encrypted container)</code> + <code>USB-VOLUME-ENCRYPTED</code> finding. Heuristic rule; real-data negative control on the FAT rm2 stick — not flagged)</td>
+</tr>
+<tr>
+<td>Physical-device→host attribution (image the stick, tie it to its host footprint)</td>
+<td>USB Detective, USBFT</td>
+<td>✅ (<code>DeviceImageSource</code> + disk-signature canonicalization: a raw device image's MBR disk signature joins the MountedDevices bridge AND its FAT volume serial joins EMDMgmt/LNK — unifying the physical device, drive letter, volume label, and per-user mount into ONE record. Tier-1 on the real CFReDS RM#2 stick: the SanDisk 'IAMAN' stick tied to drive E:, label 'IAMAN \$_@', and the informant's 2015-03-24 mount — volume serial Corroborated across the device media and the host SOFTWARE hive)</td>
+</tr>
+<tr>
+<td>File-to-device linking (which files touched which stick)</td>
+<td>USB Detective, USBFT</td>
+<td>✅ (<code>reconcile_volume_serials</code> — LNK volume-keyed file access re-attributed to the device carrying that volume serial; ambiguous/unmatched left untouched. Rule-tested; end-to-end join needs a FAT-volume + LNK corpus)</td>
+</tr>
+<tr>
+<td>Timezone normalization (local ↔ UTC)</td>
+<td>USB Detective</td>
+<td>✅ (<code>--tz-offset</code>; <code>clock_is_local</code> per source)</td>
+</tr>
+<tr>
+<td>OS-version-aware artifact semantics</td>
+<td>USB Detective</td>
+<td>📋</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-cross-platform-evidence-usbft-breadth">4. Cross-platform evidence (USBFT breadth)<a class="headerlink" href="#4-cross-platform-evidence-usbft-breadth" title="Permanent link">&para;</a></h2>
+<p>Per-OS modules report what each system actually retains, with <strong>explicit retention
+windows</strong> — a timestamped event list, not a fabricated consistency score where the
+sources cannot support one (see <a href="../roadmap/">roadmap</a> Phase 3).</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>OS</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>com.apple.iPod.plist</code> (Apple-device connection history)</td>
+<td>macOS</td>
+<td>✅ (<code>AppleIPodSource</code> via the <code>plist</code> crate; per-device serial, model, last-connected. Tier-1 on a real macOS <code>com.apple.iPod.plist</code>)</td>
+</tr>
+<tr>
+<td><code>system_profiler</code> / IORegistry (live USB device tree)</td>
+<td>macOS</td>
+<td>✅ (<code>MacUsbSource</code>: parses <code>system_profiler -json SPUSBDataType</code> → serial, VID/PID, model, mass-storage. Tier-1 on a real SanDisk stick plugged into a Mac)</td>
+</tr>
+<tr>
+<td>Unified log (USB enumeration/connection history)</td>
+<td>macOS</td>
+<td>✅ (<code>MacUnifiedLogSource</code>: parses <code>log show --style json</code> <code>enumerateDeviceComplete</code> events → VID/PID, name, first/last-connect times. Tier-1 on a real SanDisk stick's live log; VID cross-checks <code>system_profiler</code>)</td>
+</tr>
+<tr>
+<td>syslog/dmesg kernel USB blocks (journald/GVFS planned)</td>
+<td>Linux</td>
+<td>✅ wired end-to-end (<code>peripheral-core</code> <code>linux_syslog</code>, <code>--year</code>); UAC-syslog validated</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-output-reporting">5. Output &amp; reporting<a class="headerlink" href="#5-output-reporting" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Seen in</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Results grid / high-level report</td>
+<td>USB Detective, USBFT, Historian, USBDeview</td>
+<td>✅ (<code>usb4n6 --table</code>)</td>
+</tr>
+<tr>
+<td>Verbose per-value report with provenance</td>
+<td>USB Detective</td>
+<td>✅ (<code>usb4n6 --report</code>)</td>
+</tr>
+<tr>
+<td>Per-device timeline</td>
+<td>USB Detective</td>
+<td>✅ (per-device JSONL / report block)</td>
+</tr>
+<tr>
+<td>Aggregate super-timeline</td>
+<td>USB Detective</td>
+<td>✅ (<code>usb4n6 --timeline</code>; every timestamped event across all devices, chronological JSONL)</td>
+</tr>
+<tr>
+<td>Opened/accessed-files report</td>
+<td>USB Detective</td>
+<td>✅ (<code>usb4n6 --files</code>: files opened per device from LNK/jump-list AccessedFile claims, with source locators)</td>
+</tr>
+<tr>
+<td>Machine-readable output (JSONL, diffable, pipeable)</td>
+<td>(weak in all — Excel/CSV only)</td>
+<td>✅ (<code>to_jsonl</code>, default)</td>
+</tr>
+<tr>
+<td><code>forensicnomicon::report</code> findings (fleet-uniform, MITRE-tagged)</td>
+<td>(fleet-only)</td>
+<td>✅ (<code>audit</code>)</td>
+</tr>
+<tr>
+<td>Court-ready report with per-value source chain</td>
+<td>(Excel only elsewhere)</td>
+<td>✅ native <strong>DOCX + PDF</strong> (<code>--docx</code>/<code>--pdf</code>, both oracle-validated) + Markdown (<code>--report</code>)</td>
+</tr>
+<tr>
+<td>Volume / MBR export</td>
+<td>USB Detective</td>
+<td>✅ (<code>usb4n6 --export-mbr</code>: annotated hex dump of each device image's raw 512-byte MBR sector, headed by the disk signature)</td>
+</tr>
+<tr>
+<td>Differential mode vs USB Detective / RegRipper (validation)</td>
+<td>(none)</td>
+<td>📋</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-engineering-posture-the-fleet-differentiators">6. Engineering posture (the fleet differentiators)<a class="headerlink" href="#6-engineering-posture-the-fleet-differentiators" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Single static binary, no runtime deps, <code>cargo install</code></td>
+<td>✅ (<code>cargo install usb-forensic</code> installs the <code>usb4n6</code> binary; published 0.1.0, install-verified)</td>
+</tr>
+<tr>
+<td>Library-embeddable (used by Issen / other fleet crates)</td>
+<td>✅ (this crate)</td>
+</tr>
+<tr>
+<td><code>#![forbid(unsafe_code)]</code>, panic-free (unwrap/expect denied)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>100% line coverage gate</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Fuzzed at every parse boundary</td>
+<td>✅ (cargo-fuzz targets for all four raw parsers — boot sectors, system_profiler JSON, unified-log JSON, iPod plist — 100k iterations each clean; PR smoke-fuzz + weekly 10-min CI)</td>
+</tr>
+<tr>
+<td>Validated against independent oracle on real images</td>
+<td>✅ (every source validated Tier-1 against real artifacts + an independent oracle: regipy, python-evtx, the NIST CFReDS answer key, <code>system_profiler</code> cross-check, a Python epoch oracle)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p>The correlation <strong>core</strong> (source-agnostic: claims → consistency + provenance → findings)
+is the highest-leverage work; every artifact row above becomes "add a <code>HistorySource</code>"
+once it is solid. That is what is being built first.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.tabs", "navigation.sections", "navigation.top", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
