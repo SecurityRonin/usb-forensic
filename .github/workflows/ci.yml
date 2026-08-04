@@ -54,7 +54,7 @@ jobs:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@9bdad043e88c75890e36ad3bbc8d27f0090dd609 # v2.7.8
       - run: cargo install cargo-llvm-cov
-      - run: cargo llvm-cov --lib --fail-uncovered-lines 0 --show-missing-lines
+      - run: cargo llvm-cov --fail-uncovered-lines 0 --show-missing-lines --ignore-filename-regex '(^|/)src/(main\.rs|bin/)'
 
   msrv:
     name: MSRV (1.96)
