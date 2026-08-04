@@ -8,6 +8,20 @@ user-id = 696
 user-login = "fitzgen"
 user-name = "Nick Fitzgerald"
 
+[[publisher.forensicnomicon-core]]
+version = "1.5.0"
+when = "2026-07-29"
+user-id = 347968
+user-login = "h4x0r"
+user-name = "Albert Hui"
+
+[[publisher.peripheral-core]]
+version = "0.8.2"
+when = "2026-08-04"
+user-id = 347968
+user-login = "h4x0r"
+user-name = "Albert Hui"
+
 [[publisher.unicode-width]]
 version = "0.1.14"
 when = "2024-09-19"
