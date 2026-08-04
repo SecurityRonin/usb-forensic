@@ -31,11 +31,9 @@ forensicnomicon = "1.6"
 # Device-connection domain reader: setupapi.dev.log, SYSTEM-hive Enum device keys
 # (+ MountedDevices drive-letter join), Linux kernel logs, MountPoints2, and the
 # BagMRU ShellBags reader (drive-letter browsed folders), each decoded to typed
-# records. Path + version during the in-flight E2 shellbag change: the shellbag
-# reader is unpublished, so resolve peripheral-core locally within the fleet
-# umbrella (mirrors peripheral-core's own forensicnomicon-core path dep). Switch to
-# the pure registry `version = "0.9"` once peripheral-core publishes the reader.
-peripheral-core = { version = "0.8", path = "../peripheral-forensic/core" }
+# records. 0.8.2 is the first published version carrying the ShellBags reader,
+# so this is a plain registry dependency again.
+peripheral-core = { version = "0.8" }
 # Opens a SYSTEM hive in memory so peripheral-core's registry reader can decode it.
 winreg-core = "0.2"
 # macOS Apple-device connection history (com.apple.iPod.plist); 1.10 ships the
