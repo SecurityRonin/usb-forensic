@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/SecurityRonin/usb-forensic/compare/usb-forensic-v0.2.0...usb-forensic-v0.3.0) - 2026-08-04
+
+### Added
+
+- *(shellbag)* GREEN — emit drive-letter + browsed-folder Claims
+
+### Fixed
+
+- *(deps)* take peripheral-core from the registry, not the sibling repo
+- *(deps)* tighten mbr/gpt-partition floors to field-bearing versions (0.6.2/0.6.1)
+
+### Other
+
+- Merge pull request #23 from SecurityRonin/fix/docs-actions-pages-deploy
+
 ## [0.2.0](https://github.com/SecurityRonin/usb-forensic/compare/usb-forensic-v0.1.0...usb-forensic-v0.2.0) - 2026-07-25
 
 ### Added
