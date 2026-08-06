@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.3.1](https://github.com/SecurityRonin/usb-forensic/compare/usb-forensic-v0.3.0...usb-forensic-v0.3.1) - 2026-08-06
+
+### Fixed
+
+- *(supply-chain)* allow the bzip2-1.0.6 licence the 7z decode path needs
+- *(deps)* widen disk-forensic 0.9 -> 0.11, clearing the vulnerable lru
+
 ## [0.3.0](https://github.com/SecurityRonin/usb-forensic/compare/usb-forensic-v0.2.0...usb-forensic-v0.3.0) - 2026-08-04
 
 ### Added
