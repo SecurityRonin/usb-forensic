@@ -51,7 +51,7 @@ ewf = "0.4"
 # Partition-scheme dispatch (MBR/GPT/APM) + filesystem-signature detection, tested against
 # real disk corpora — replaces hand-rolled boot-sector parsing. `mbr-partition-forensic`
 # supplies the PartitionSummary / DetectedFs types the DiskReport carries.
-disk-forensic = "0.9"
+disk-forensic = "0.11"
 # 0.6.2 is the floor: `PartitionSummary` gained the `volume_serial`/`encryption`
 # fields device_image.rs reads only in mbr-partition-core 0.6.2 (a too-loose "0.6"
 # lets a stale shared lock — e.g. issen's — resolve the field-less 0.6.1 and fail).
