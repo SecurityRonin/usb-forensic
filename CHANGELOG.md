@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.3.2](https://github.com/SecurityRonin/usb-forensic/compare/usb-forensic-v0.3.1...usb-forensic-v0.3.2) - 2026-08-09
+
+### Fixed
+
+- *(gitignore)* unanchor the target rule so nested cargo projects are ignored
+
 ## [0.3.1](https://github.com/SecurityRonin/usb-forensic/compare/usb-forensic-v0.3.0...usb-forensic-v0.3.1) - 2026-08-06
 
 ### Fixed
